@@ -105,19 +105,18 @@ def send_prompt_and_extract_answer(page, prompt: str, timeout_sec: int = 150) ->
     time.sleep(1)
 
     print("👉 Menekan tombol kirim / Enter...")
-    sent = False
+    textarea.press("Enter")
+    time.sleep(1)
+    page.keyboard.press("Enter")
     try:
-        send_btn = page.locator("button[aria-label*='Kirim'], button[aria-label*='Send'], button[type='submit'], .send-button, .chat-input-send-button").last
-        if send_btn.is_visible(timeout=3000):
-            send_btn.click(force=True)
-            sent = True
-            print("Tombol kirim tertekan!")
+        send_btns = page.locator("button[aria-label*='Kirim'], button[aria-label*='Send'], button[type='submit'], .send-button, .chat-input-send-button, button:has(svg)")
+        for i in range(send_btns.count()):
+            btn = send_btns.nth(i)
+            if btn.is_visible():
+                btn.click(force=True)
+                break
     except Exception as e:
         print(f"Notice send button: {e}")
-
-    if not sent:
-        textarea.press("Enter")
-        print("Enter keyboard ditekan!")
 
     # Fallback DOM JS click jika textarea masih berisi teks
     time.sleep(1.5)

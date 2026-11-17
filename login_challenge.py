@@ -13,7 +13,6 @@ import numpy as np
 TELEGRAM_BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN")
 TELEGRAM_CHAT_ID = os.environ.get("TELEGRAM_CHAT_ID")
 TARGET_EMAIL = os.environ.get("TARGET_EMAIL", "tuanciroxtreme@gmail.com")
-PROXY_URL = os.environ.get("WEBSHARE_ROTATING_PROXY")
 
 def send_telegram_msg(text: str):
     if not (TELEGRAM_BOT_TOKEN and TELEGRAM_CHAT_ID):
@@ -145,32 +144,49 @@ def inspect_and_solve_baxia(page):
     print(f"📐 Target visual: {target_left:.1f}px -> RUMUS KUADRATIK MOUSE D: {mouse_distance:.1f}px")
     send_telegram_msg(f"🦊 [CAMOUFOX STEALTH] Gap={target_left:.1f}px -> D={mouse_distance:.1f}px")
 
-    start_x = box["x"] + 25.0
-    start_y = box["y"] + box["height"] + 25.0
+    # KUNCI ELEMEN SLIDER HANDLE (TOMBOL BIRU >>) SECARA PRESISI
+    slider_btn = page.locator(".nc_iconfont.btn_slide, div[class*='btn_slide'], div[class*='slider'] span, div[class*='slider'] div, div:has-text('>>')").first
+    
+    # Scroll dan hover ke tombol
+    slider_btn.scroll_into_view_if_needed()
+    btn_box = slider_btn.bounding_box()
+    
+    if not btn_box:
+        # Fallback: ambil koordinat relatif puzzle
+        start_x = box["x"] + 25.0
+        start_y = box["y"] + box["height"] + 25.0
+    else:
+        start_x = btn_box["x"] + btn_box["width"] / 2
+        start_y = btn_box["y"] + btn_box["height"] / 2
+        print(f"🎯 Tombol slider handle terdeteksi langsung di ({start_x:.1f}, {start_y:.1f})!")
+
+    print(f"⚡ MENGGESER BALOK: Start ({start_x:.1f}, {start_y:.1f}) -> Geser {mouse_distance:.1f}px...")
+    
+    # Lakukan hover agar cursor state ter-trigger
+    page.mouse.move(start_x, start_y)
+    time.sleep(0.3)
+    
+    # Tekan tombol mouse
+    page.mouse.down()
+    time.sleep(0.2)
     
     traj = generate_human_whip_trajectory(mouse_distance)
-    
-    page.mouse.move(start_x, start_y)
-    time.sleep(0.2)
-    page.mouse.down()
-    
     for pt_x, pt_y, delay in traj:
         page.mouse.move(start_x + pt_x, start_y + pt_y)
         time.sleep(delay / 1000.0)
         
-    time.sleep(0.35)
+    time.sleep(0.4)
     page.mouse.up()
-    print("✅ Balok puzzle selesai digeser via Camoufox C++ Engine!")
+    print("✅ Balok puzzle selesai digeser!")
     time.sleep(4)
     
     page.screenshot(path="screen_after_slide.png")
-    send_telegram_photo("screen_after_slide.png", "📸 [BUKTI GESER] Kondisi layar setelah balok dipasang")
+    send_telegram_photo("screen_after_slide.png", "📸 [BUKTI GESER AKTIF] Kondisi layar setelah balok ditarik")
     return True
 
 def main():
-    send_telegram_msg(f"🦊 [CAMOUFOX DIRECT LOGIN] Buka Langsung URL Auth Qwen!\nTarget: {TARGET_EMAIL}")
+    send_telegram_msg(f"🦊 [CAMOUFOX DIRECT DRAG] Meluncurkan Dragging Presisi!\nTarget: {TARGET_EMAIL}")
     
-    # KITA TIDAK PAKAI PROXY AGAR LOADING 100% KENCANG DAN TIDAK PUTIH
     with Camoufox(
         headless=False,
         os="linux",
@@ -180,18 +196,15 @@ def main():
         page = context.new_page()
 
         print("1. Meluncur langsung ke URL Auth Qwen...")
-        # Direct URL auth agar langsung mendarat di form email tanpa klik tombol masuk
         page.goto("https://chat.qwen.ai/auth?mode=signin", wait_until="load", timeout=60000)
         
-        # Tunggu sampai elemen input email beneran ada (maks 20s)
         print("⏳ Menunggu input email selesai loading...")
         page.wait_for_selector("input", timeout=25000)
         time.sleep(2)
         
         page.screenshot(path="step1_loaded.png")
-        send_telegram_photo("step1_loaded.png", "📸 [STEP 1 BERHASIL LOAD!] Form Qwen Terbuka Sempurna")
+        send_telegram_photo("step1_loaded.png", "📸 [STEP 1 LOADED] Halaman Auth Terbuka Sempurna")
 
-        # Cari input email
         email_loc = page.locator("input[placeholder*='email' i], input[type='email'], input[placeholder*='surel' i], input").first
         email_loc.click()
         time.sleep(0.5)
@@ -216,7 +229,7 @@ def main():
         # CEK & SOLVE BAXIA PUZZLE
         solved = inspect_and_solve_baxia(page)
         if solved:
-            send_telegram_msg("📬 Balok puzzle telah digeser! Cek screenshot bukti geser di atas.")
+            send_telegram_msg("📬 Balok puzzle telah ditarik! Cek bukti geser di foto atas.")
         else:
             send_telegram_msg("⚠️ Status akhir halaman telah dikirimkan ke Telegram.")
 

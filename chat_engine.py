@@ -64,19 +64,39 @@ JS_CHECK_STREAM_DONE = """() => {
 
 JS_EXTRACTOR = r'''() => {
     try {
-        const bubbles = document.querySelectorAll('.chat-message-list .markdown-body, [class*="assistant"] .markdown-body, .markdown-body');
-        if (bubbles.length > 0) {
-            for (let i = bubbles.length - 1; i >= 0; i--) {
-                let t = bubbles[i].innerText ? bubbles[i].innerText.trim() : '';
-                if (t && !t.includes('Ada yang bisa saya bantu?') && !t.includes('How can I help') && t.length > 5) {
-                    return t.replace(/^Berpikir selesai\s*/, '').trim();
+        const items = document.querySelectorAll('[class*="chat-item-assistant"], [class*="message-assistant"], [class*="assistant-message"]');
+        if (items.length > 0) {
+            const lastItem = items[items.length - 1];
+            const md = lastItem.querySelector('.markdown-body, [class*="content"], div');
+            if (md && md.innerText) {
+                let txt = md.innerText.trim();
+                return txt.replace(/^Berpikir selesai\s*/, '').trim();
+            }
+        }
+        const allMd = document.querySelectorAll('.markdown-body');
+        for (let i = allMd.length - 1; i >= 0; i--) {
+            const el = allMd[i];
+            const isUser = el.closest('[class*="user"]') !== null;
+            if (!isUser) {
+                let txt = (el.innerText || '').trim();
+                if (txt && !txt.includes('How can I help') && !txt.includes('Ada yang bisa')) {
+                    return txt.replace(/^Berpikir selesai\s*/, '').trim();
                 }
             }
         }
-        const paras = Array.from(document.querySelectorAll('main p, [class*="chat"] p'))
-            .map(p => (p.innerText || '').trim())
-            .filter(t => t && !t.includes('AI-generated') && !t.includes('How can I help'));
-        return paras.join('\n\n');
+        const userBubbles = document.querySelectorAll('[class*="chat-item-user"], [class*="message-user"]');
+        if (userBubbles.length > 0) {
+            const lastUser = userBubbles[userBubbles.length - 1];
+            let nextEl = lastUser.nextElementSibling;
+            while (nextEl) {
+                const t = (nextEl.innerText || '').trim();
+                if (t && !t.includes('AI-generated') && !t.includes('How can I help')) {
+                    return t.replace(/^Berpikir selesai\s*/, '').trim();
+                }
+                nextEl = nextEl.nextElementSibling;
+            }
+        }
+        return '';
     } catch(e) {
         return '';
     }

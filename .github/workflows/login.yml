@@ -57,5 +57,12 @@ jobs:
         run: |
           git config user.name "Ciro Session Bot"
           git config user.email "ciro@automated.local"
-          git add session_qwen.json || true
-          git diff --quiet && git diff --staged --quiet || (git commit -m "Auto-persist session_qwen.json [skip ci]" && git push origin main)
+          if [ -f session_qwen.json ]; then
+            git add session_qwen.json
+            if ! git diff --cached --quiet; then
+              git commit -m "Auto-persist session_qwen.json [skip ci]"
+              git push origin main
+            else
+              echo "No session changes to commit."
+            fi
+          fi

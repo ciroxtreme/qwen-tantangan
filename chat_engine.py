@@ -27,29 +27,38 @@ JS_CHECK_STREAM_DONE = """() => {
             break;
         }
     }
-    const bubbles = document.querySelectorAll('.chat-message-list .markdown-body, [class*="chat-item-assistant"] .markdown-body, .markdown-body');
+    // Cari elemen respon assistant
+    const targets = document.querySelectorAll('.chat-message-list .markdown-body, [class*="assistant"] .markdown-body, .markdown-body, [class*="message-content"], [class*="chat-item"]');
     let answerLen = 0;
     let snippet = "";
-    let isThinkingOnly = false;
 
-    if (bubbles.length > 0) {
-        for (let i = bubbles.length - 1; i >= 0; i--) {
-            const t = bubbles[i].innerText.trim();
-            if (t && !t.includes("Ada yang bisa saya bantu?") && !t.includes("Umpan balik ini")) {
+    if (targets.length > 0) {
+        for (let i = targets.length - 1; i >= 0; i--) {
+            const t = targets[i].innerText ? targets[i].innerText.trim() : "";
+            if (t && !t.includes("Ada yang bisa saya bantu?") && !t.includes("How can I help you?") && !t.includes("Umpan balik ini")) {
                 answerLen = t.length;
                 snippet = t.substring(0, 80);
-                if (!t.includes("Berpikir selesai") && (t.includes("berpikir") || t.includes("thinking") || t.includes("Analyze") || t.includes("Assessing"))) {
-                    isThinkingOnly = true;
-                }
                 break;
             }
         }
     }
+    
+    // Fallback deteksi teks di body selain header/sidebar
+    if (answerLen === 0) {
+        const bodyTxt = document.body.innerText || "";
+        const parts = bodyTxt.split(/Tes live tahap|Halo Qwen|Jelaskan secara/i);
+        if (parts.length > 1) {
+            const afterPrompt = parts[parts.length - 1].trim();
+            answerLen = afterPrompt.length;
+            snippet = afterPrompt.substring(0, 80);
+        }
+    }
+
     return {
         hasStop: hasStop,
         answerLen: answerLen,
         snippet: snippet,
-        isThinkingOnly: isThinkingOnly
+        isThinkingOnly: false
     };
 }"""
 
@@ -176,4 +185,13 @@ def send_prompt_and_extract_answer(page, prompt: str, timeout_sec: int = 150) ->
         prev_len = current_len
 
     answer = page.evaluate(JS_EXTRACTOR)
+    if not answer or len(answer) < 5:
+        # Fallback ekstraseluruh teks setelah prompt pertanyaan
+        body_txt = page.evaluate("() => document.body.innerText")
+        if prompt in body_txt:
+            answer = body_txt.split(prompt, 1)[-1].strip()
+            # Bersihkan footer disclaimer
+            for stopword in ["AI-generated content may not be accurate", "Auto", "New Chat"]:
+                if stopword in answer:
+                    answer = answer.split(stopword)[0].strip()
     return answer

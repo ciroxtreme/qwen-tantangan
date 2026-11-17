@@ -62,34 +62,25 @@ JS_CHECK_STREAM_DONE = """() => {
     };
 }"""
 
-JS_EXTRACTOR = """() => {
-    // 1. Cek semua bubble markdown dari assistant
-    const bubbles = document.querySelectorAll('.chat-message-list .markdown-body, [class*="chat-item-assistant"] .markdown-body, [class*="message-assistant"] .markdown-body, .markdown-body');
-    if (bubbles.length > 0) {
-        for (let i = bubbles.length - 1; i >= 0; i--) {
-            let t = bubbles[i].innerText ? bubbles[i].innerText.trim() : "";
-            if (t && !t.includes("Ada yang bisa saya bantu?") && !t.includes("How can I help you?") && !t.includes("Umpan balik ini") && t.length > 5) {
-                if (t.startsWith("Berpikir selesai")) {
-                    t = t.replace(/^Berpikir selesai\\s*/, '').trim();
+JS_EXTRACTOR = r'''() => {
+    try {
+        const bubbles = document.querySelectorAll('.chat-message-list .markdown-body, [class*="assistant"] .markdown-body, .markdown-body');
+        if (bubbles.length > 0) {
+            for (let i = bubbles.length - 1; i >= 0; i--) {
+                let t = bubbles[i].innerText ? bubbles[i].innerText.trim() : '';
+                if (t && !t.includes('Ada yang bisa saya bantu?') && !t.includes('How can I help') && t.length > 5) {
+                    return t.replace(/^Berpikir selesai\s*/, '').trim();
                 }
-                return t;
             }
         }
+        const paras = Array.from(document.querySelectorAll('main p, [class*="chat"] p'))
+            .map(p => (p.innerText || '').trim())
+            .filter(t => t && !t.includes('AI-generated') && !t.includes('How can I help'));
+        return paras.join('\n\n');
+    } catch(e) {
+        return '';
     }
-    // 2. Fallback: ambil semua elemen paragraf di chat
-    const paragraphs = document.querySelectorAll('main p, [class*="chat"] p, div[class*="content"] p');
-    const pTexts = [];
-    for (const p of paragraphs) {
-        const pt = p.innerText ? p.innerText.trim() : "";
-        if (pt && !pt.includes("AI-generated") && !pt.includes("How can I help")) {
-            pTexts.push(pt);
-        }
-    }
-    if (pTexts.length > 0) {
-        return pTexts.join("\n\n");
-    }
-    return "";
-}"""
+}'''
 
 def send_prompt_and_extract_answer(page, prompt: str, timeout_sec: int = 150) -> str:
     print(f"👉 Menyiapkan pengiriman pertanyaan ke Qwen: '{prompt}'...")

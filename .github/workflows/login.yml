@@ -21,6 +21,8 @@ jobs:
           python-version: "3.11"
 
       - name: Install dependencies
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           sudo apt-get update && sudo apt-get install -y xvfb
           pip install "camoufox[geoip]" opencv-python-headless numpy
@@ -31,6 +33,5 @@ jobs:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
           TARGET_EMAIL: ${{ github.event.inputs.email }}
-          WEBSHARE_ROTATING_PROXY: ${{ secrets.WEBSHARE_ROTATING_PROXY }}
         run: |
           xvfb-run -a python login_challenge.py

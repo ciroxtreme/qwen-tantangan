@@ -168,98 +168,57 @@ def inspect_and_solve_baxia(page):
     return True
 
 def main():
-    send_telegram_msg(f"🦊 [CAMOUFOX C++ STEALTH] Memulai Pertarungan Anti-Baxia di Virtual Display!\nTarget: {TARGET_EMAIL}")
+    send_telegram_msg(f"🦊 [CAMOUFOX DIRECT LOGIN] Buka Langsung URL Auth Qwen!\nTarget: {TARGET_EMAIL}")
     
-    proxy_config = None
-    if PROXY_URL:
-        p = urllib.parse.urlparse(PROXY_URL)
-        proxy_config = {
-            "server": f"{p.scheme}://{p.hostname}:{p.port}",
-            "username": p.username,
-            "password": p.password
-        }
-
+    # KITA TIDAK PAKAI PROXY AGAR LOADING 100% KENCANG DAN TIDAK PUTIH
     with Camoufox(
         headless=False,
         os="linux",
-        proxy=proxy_config,
-        geoip=True,
         i_know_what_im_doing=True
     ) as browser:
         context = browser.new_context(viewport={"width": 1280, "height": 800})
         page = context.new_page()
 
-        def handle_response(response):
-            if "-verify" in response.url or "captcha" in response.url:
-                try:
-                    text = response.text()
-                    if "T001" in text:
-                        print("🔥 RESPONSE DETECTED: T001 (PASS)!")
-                        send_telegram_msg("🎉 [BAXIA T001 PASS!] CAMOUFOX BERHASIL MENEMBUS BAXIA ALIBABA!")
-                    elif "F015" in text:
-                        print("⚠️ RESPONSE: F015")
-                    elif "F001" in text:
-                        print("⚠️ RESPONSE: F001")
-                except Exception:
-                    pass
+        print("1. Meluncur langsung ke URL Auth Qwen...")
+        # Direct URL auth agar langsung mendarat di form email tanpa klik tombol masuk
+        page.goto("https://chat.qwen.ai/auth?mode=signin", wait_until="load", timeout=60000)
+        
+        # Tunggu sampai elemen input email beneran ada (maks 20s)
+        print("⏳ Menunggu input email selesai loading...")
+        page.wait_for_selector("input", timeout=25000)
+        time.sleep(2)
+        
+        page.screenshot(path="step1_loaded.png")
+        send_telegram_photo("step1_loaded.png", "📸 [STEP 1 BERHASIL LOAD!] Form Qwen Terbuka Sempurna")
 
-        page.on("response", handle_response)
+        # Cari input email
+        email_loc = page.locator("input[placeholder*='email' i], input[type='email'], input[placeholder*='surel' i], input").first
+        email_loc.click()
+        time.sleep(0.5)
+        
+        print(f"👉 Mengetik email: {TARGET_EMAIL}...")
+        email_loc.type(TARGET_EMAIL, delay=50)
+        time.sleep(1)
+        
+        page.screenshot(path="step2_typed.png")
+        send_telegram_photo("step2_typed.png", "📸 [STEP 2] Email Selesai Diketik")
 
-        print("1. Membuka https://chat.qwen.ai/...")
-        page.goto("https://chat.qwen.ai/", wait_until="networkidle", timeout=60000)
-        time.sleep(3)
-
-        # Cari tombol Masuk / Sign In
-        login_btn = None
-        for txt in ["Masuk", "Sign in", "Log in", "Login"]:
-            loc = page.get_by_role("button", name=txt)
-            if loc.count() > 0 and loc.first.is_visible():
-                login_btn = loc.first
-                break
-            loc2 = page.locator(f"button:has-text('{txt}'), a:has-text('{txt}')")
-            if loc2.count() > 0 and loc2.first.is_visible():
-                login_btn = loc2.first
-                break
-
-        if login_btn:
-            print("👉 Mengklik tombol login...")
-            login_btn.click()
+        # Klik tombol Continue
+        submit_btn = page.locator("button:has-text('Continue'), button:has-text('Lanjutkan'), button[type='submit']").first
+        if submit_btn.is_visible():
+            print("👉 Mengklik Continue...")
+            submit_btn.click()
+            time.sleep(4)
+        else:
+            page.keyboard.press("Enter")
             time.sleep(4)
 
-        # Cari input email dengan aman
-        email_loc = page.locator("input[placeholder*='email' i], input[type='email'], input[placeholder*='surel' i]")
-        if email_loc.count() > 0 and email_loc.first.is_visible():
-            print(f"👉 Mengisikan email target {TARGET_EMAIL}...")
-            email_input = email_loc.first
-            email_input.click()
-            time.sleep(0.5)
-            # Ketik satu per satu
-            email_input.type(TARGET_EMAIL, delay=40)
-            time.sleep(1)
-            
-            page.screenshot(path="camoufox_email_typed.png")
-            send_telegram_photo("camoufox_email_typed.png", "📸 [STEP 2] Email sudah terketik di form")
-
-            # Cari tombol Continue / Lanjutkan
-            submit_btn = page.locator("button:has-text('Continue'), button:has-text('Lanjutkan'), button[type='submit']").first
-            if submit_btn.is_visible():
-                print("👉 Mengklik tombol Continue...")
-                submit_btn.click()
-                time.sleep(4)
-            else:
-                page.keyboard.press("Enter")
-                time.sleep(4)
-
-            # CEK & GESER BAXIA PUZZLE
-            solved = inspect_and_solve_baxia(page)
-            if solved:
-                send_telegram_msg("📬 Balok puzzle telah digeser! Cek screenshot bukti geser di atas.")
-            else:
-                send_telegram_msg("⚠️ Puzzle tidak muncul atau form tidak berpindah. Cek screenshot bukti layar.")
+        # CEK & SOLVE BAXIA PUZZLE
+        solved = inspect_and_solve_baxia(page)
+        if solved:
+            send_telegram_msg("📬 Balok puzzle telah digeser! Cek screenshot bukti geser di atas.")
         else:
-            print("⚠️ Input email tidak terlihat di layar modal!")
-            page.screenshot(path="no_email_input.png")
-            send_telegram_photo("no_email_input.png", "📸 [ERROR] Input email tidak ditemukan di modal")
+            send_telegram_msg("⚠️ Status akhir halaman telah dikirimkan ke Telegram.")
 
         time.sleep(5)
 

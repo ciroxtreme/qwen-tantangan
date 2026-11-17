@@ -206,32 +206,56 @@ def main():
 
         print("1. Membuka https://chat.qwen.ai/...")
         page.goto("https://chat.qwen.ai/", wait_until="networkidle", timeout=60000)
-        time.sleep(2)
+        time.sleep(3)
+        
+        page.screenshot(path="camoufox_step1.png")
+        send_telegram_photo("camoufox_step1.png", "📸 [CAMOUFOX STEP 1] Beranda Qwen")
 
+        # Cari tombol Masuk / Sign In
         login_btn = None
         for txt in ["Masuk", "Sign in", "Log in", "Login"]:
             loc = page.get_by_role("button", name=txt)
             if loc.count() > 0 and loc.first.is_visible():
                 login_btn = loc.first
                 break
-            loc2 = page.locator(f"text='{txt}'")
+            loc2 = page.locator(f"button:has-text('{txt}'), a:has-text('{txt}')")
             if loc2.count() > 0 and loc2.first.is_visible():
                 login_btn = loc2.first
                 break
 
         if login_btn:
+            print("👉 Mengklik tombol login...")
             login_btn.click()
-            time.sleep(3)
+            time.sleep(4)
 
-        email_input = page.locator("input[type='email'], input[placeholder*='email' i], input[placeholder*='surel' i]")
-        if email_input.count() == 0:
-            email_input = page.locator("input[type='text']")
+        page.screenshot(path="camoufox_step2_modal.png")
+        send_telegram_photo("camoufox_step2_modal.png", "📸 [CAMOUFOX STEP 2] Modal Login Terbuka")
 
-        if email_input.count() > 0 and email_input.first.is_visible():
-            email_input.first.fill(TARGET_EMAIL)
-            print("✅ Email berhasil diisi!")
+        # Cari input email dengan selector fleksibel
+        email_input = None
+        selectors = [
+            "input[type='email']",
+            "input[placeholder*='email' i]",
+            "input[placeholder*='surel' i]",
+            "input[name*='email' i]",
+            "input[name*='account' i]",
+            "input[type='text']"
+        ]
+        for sel in selectors:
+            loc = page.locator(sel)
+            if loc.count() > 0 and loc.first.is_visible():
+                email_input = loc.first
+                break
+
+        if email_input:
+            print(f"👉 Mengisikan email target {TARGET_EMAIL}...")
+            email_input.click()
+            email_input.fill(TARGET_EMAIL)
             time.sleep(1)
+        else:
+            print("⚠️ Input email tidak ditemukan secara spesifik!")
 
+        # Cari tombol Lanjutkan
         submit_btn = None
         for txt in ["Lanjutkan", "Lanjut", "Kirim Kode", "Dapatkan Kode", "Send Code", "Next", "Continue"]:
             loc = page.get_by_role("button", name=txt)
@@ -244,10 +268,11 @@ def main():
                 break
 
         if submit_btn:
+            print("👉 Mengklik tombol submit/lanjutkan...")
             submit_btn.click()
             time.sleep(3)
-        else:
-            email_input.first.press("Enter")
+        elif email_input:
+            email_input.press("Enter")
             time.sleep(3)
 
         # SELESAIKAN BAXIA DENGAN CAMOUFOX

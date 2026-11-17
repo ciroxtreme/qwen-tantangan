@@ -18,7 +18,7 @@ PROMPT_ASK = sys.argv[1] if len(sys.argv) > 1 and not sys.argv[1].startswith("--
 
 def send_telegram_msg(text: str):
     if not (TELEGRAM_BOT_TOKEN and TELEGRAM_CHAT_ID):
-        print(flush=True)f"[TG] {text}")
+        print(f"[TG] {text}")
         return
     url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
     payload = urllib.parse.urlencode({
@@ -29,7 +29,7 @@ def send_telegram_msg(text: str):
         req = urllib.request.Request(url, data=payload, headers={"Content-Type": "application/x-www-form-urlencoded"})
         urllib.request.urlopen(req, timeout=10)
     except Exception as e:
-        print(flush=True)f"[TG Error] {e}")
+        print(f"[TG Error] {e}")
 
 def send_telegram_photo(photo_path: str, caption: str = ""):
     if not (TELEGRAM_BOT_TOKEN and TELEGRAM_CHAT_ID) or not os.path.exists(photo_path):
@@ -56,7 +56,7 @@ def send_telegram_photo(photo_path: str, caption: str = ""):
     try:
         urllib.request.urlopen(req, timeout=15)
     except Exception as e:
-        print(flush=True)f"[TG Photo Error] {e}")
+        print(f"[TG Photo Error] {e}")
 
 def solve_mouse_travel(target_left: float, A=0.0769, B=0.003552) -> float:
     disc = A * A + 4 * B * target_left
@@ -108,7 +108,7 @@ def find_gap_with_cv(bg_path: str) -> float:
     if candidates:
         candidates.sort(key=lambda item: abs(item[2] - item[3]))
         target_x = candidates[0][0]
-        print(flush=True)f"🎯 OpenCV mendeteksi lubang puzzle di X={target_x} (w={candidates[0][2]}, h={candidates[0][3]})")
+        print(f"🎯 OpenCV mendeteksi lubang puzzle di X={target_x} (w={candidates[0][2]}, h={candidates[0][3]})")
         return float(target_x)
         
     return 210.0
@@ -154,15 +154,15 @@ def wait_for_telegram_otp(timeout_sec: int = 180) -> str:
 
 def inspect_and_solve_baxia_multiround(page, max_rounds: int = 4):
     for r in range(1, max_rounds + 1):
-        print(flush=True)f"\n🔍 [RONDE {r}] Memeriksa status CAPTCHA / Baxia...")
+        print(f"\n🔍 [RONDE {r}] Memeriksa status CAPTCHA / Baxia...")
         time.sleep(3)
         
         captcha_img = page.locator("#aliyunCaptcha-img, img.puzzle").first
         if captcha_img.count() == 0 or not captcha_img.is_visible():
-            print(flush=True)f"🎉 Tidak ada CAPTCHA yang terdeteksi di Ronde {r}. Lolos!")
+            print(f"🎉 Tidak ada CAPTCHA yang terdeteksi di Ronde {r}. Lolos!")
             return True
 
-        print(flush=True)f"🧩 Ronde {r}: Baxia puzzle terdeteksi. Mengambil screenshot puzzle...")
+        print(f"🧩 Ronde {r}: Baxia puzzle terdeteksi. Mengambil screenshot puzzle...")
         captcha_img.screenshot(path=f"puzzle_round_{r}.png")
         send_telegram_photo(f"puzzle_round_{r}.png", f"🧩 [RONDE {r}] Gambar Puzzle Aktif")
         
@@ -176,7 +176,7 @@ def inspect_and_solve_baxia_multiround(page, max_rounds: int = 4):
             target_left = (detected_x * scale_ratio) - 2.0
             
         mouse_distance = solve_mouse_travel(target_left)
-        print(flush=True)f"📐 Target visual: {target_left:.1f}px -> RUMUS KUADRATIK MOUSE D: {mouse_distance:.1f}px")
+        print(f"📐 Target visual: {target_left:.1f}px -> RUMUS KUADRATIK MOUSE D: {mouse_distance:.1f}px")
         send_telegram_msg(f"🦊 [RONDE {r}] Gap={target_left:.1f}px -> Geser={mouse_distance:.1f}px")
 
         start_x = box["x"] + 25.0
@@ -194,7 +194,7 @@ def inspect_and_solve_baxia_multiround(page, max_rounds: int = 4):
             
         time.sleep(0.4)
         page.mouse.up()
-        print(flush=True)f"✅ Ronde {r} selesai ditarik! Menunggu evaluasi respon...")
+        print(f"✅ Ronde {r} selesai ditarik! Menunggu evaluasi respon...")
         time.sleep(4)
         
         page.screenshot(path=f"after_round_{r}.png")
@@ -226,33 +226,33 @@ def main():
                     elif isinstance(saved_c, list):
                         c_list = saved_c
                     context.add_cookies(c_list)
-                    print(flush=True)f"🍪 [INIT] Memuat {len(c_list)} cookies sesi dari session_qwen.json")
+                    print(f"🍪 [INIT] Memuat {len(c_list)} cookies sesi dari session_qwen.json")
             except Exception as e:
-                print(flush=True)f"Warning init cookies: {e}")
+                print(f"Warning init cookies: {e}")
 
         page = context.new_page()
 
         # Cek apakah sesi aktif langsung ke chat tanpa login ulang
         if os.path.exists("session_qwen.json"):
-            print(flush=True)"🚀 Memeriksa status login langsung di chat.qwen.ai...")
+            print("🚀 Memeriksa status login langsung di chat.qwen.ai...")
             page.goto("https://chat.qwen.ai/", wait_until="domcontentloaded", timeout=45000)
             time.sleep(3)
             body_txt = page.evaluate("() => document.body.innerText")
             if not (("Masuk" in body_txt and "Daftar" in body_txt) or "Login" in body_txt):
-                print(flush=True)"🎉 [AUTO-LOGIN PERSISTEN] Sesi aktif! Langsung mengeksekusi chat!")
+                print("🎉 [AUTO-LOGIN PERSISTEN] Sesi aktif! Langsung mengeksekusi chat!")
                 if PROMPT_ASK:
                     answer = send_prompt_and_extract_answer(page, PROMPT_ASK)
-                    print(flush=True)"\n" + "="*40 + " QWEN FINAL ANSWER " + "="*40 + "\n")
-                    print(flush=True)answer)
-                    print(flush=True)"\n" + "="*95 + "\n")
+                    print("\n" + "="*40 + " QWEN FINAL ANSWER " + "="*40 + "\n")
+                    print(answer)
+                    print("\n" + "="*95 + "\n")
                     if answer:
                         send_telegram_msg(f"✨ [JAWABAN QWEN 4 MAX]:\n\n{answer}")
                 return
 
-        print(flush=True)"1. Meluncur langsung ke URL Auth Qwen...")
+        print("1. Meluncur langsung ke URL Auth Qwen...")
         page.goto("https://chat.qwen.ai/auth?mode=signin", wait_until="load", timeout=60000)
         
-        print(flush=True)"⏳ Menunggu form selesai render...")
+        print("⏳ Menunggu form selesai render...")
         page.wait_for_selector("input", timeout=25000)
         time.sleep(2)
 
@@ -260,13 +260,13 @@ def main():
         email_loc.click()
         time.sleep(0.5)
         
-        print(flush=True)f"👉 Mengetik email: {TARGET_EMAIL}...")
+        print(f"👉 Mengetik email: {TARGET_EMAIL}...")
         email_loc.type(TARGET_EMAIL, delay=45)
         time.sleep(1)
 
         submit_btn = page.locator("button:has-text('Continue'), button:has-text('Lanjutkan'), button[type='submit']").first
         if submit_btn.is_visible():
-            print(flush=True)"👉 Mengklik Continue...")
+            print("👉 Mengklik Continue...")
             submit_btn.click()
             time.sleep(4)
         else:
@@ -282,7 +282,7 @@ def main():
             # STANDBY MENERIMA OTP DARI TELEGRAM TUAN CIRO
             otp = wait_for_telegram_otp(timeout_sec=180)
             if otp:
-                print(flush=True)f"👉 Memasukkan OTP {otp} ke form...")
+                print(f"👉 Memasukkan OTP {otp} ke form...")
                 time.sleep(2)
                 
                 code_inputs = page.locator("input[maxlength='1'], input[autocomplete='one-time-code']")
@@ -312,9 +312,9 @@ def main():
                 if PROMPT_ASK:
                     send_telegram_msg(f"🧠 [QWEN RELAY] Mengirimkan pertanyaan ke Qwen 4 Max...")
                     answer = send_prompt_and_extract_answer(page, PROMPT_ASK)
-                    print(flush=True)"\n" + "="*40 + " QWEN FINAL ANSWER " + "="*40 + "\n")
-                    print(flush=True)answer)
-                    print(flush=True)"\n" + "="*95 + "\n")
+                    print("\n" + "="*40 + " QWEN FINAL ANSWER " + "="*40 + "\n")
+                    print(answer)
+                    print("\n" + "="*95 + "\n")
                     if answer:
                         send_telegram_msg(f"✨ [JAWABAN QWEN 4 MAX]:\n\n{answer}")
         else:

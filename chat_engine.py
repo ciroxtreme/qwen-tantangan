@@ -126,29 +126,29 @@ def send_prompt_and_extract_answer(page, prompt: str, timeout_sec: int = 150) ->
     # Pindah model secara visual di dropdown UI ke Qwen 4 Max jika belum
     try:
         print("👉 Memilih model Qwen 4 Max di menu UI...")
-        page.evaluate('''() => {
-            const buttons = document.querySelectorAll('button, [class*="model"], [class*="select"]');
-            for (const b of buttons) {
-                const txt = (b.innerText || '').toLowerCase();
-                if ((txt.includes('qwen') || txt.includes('3.7') || txt.includes('plus')) && !txt.includes('4 max') && !txt.includes('4-max')) {
-                    try {
-                        b.click();
-                        setTimeout(() => {
-                            const options = document.querySelectorAll('[role="option"], [class*="item"], [class*="menu-item"], div, span');
-                            for (const opt of options) {
-                                const optTxt = (opt.innerText || '').toLowerCase();
-                                if (optTxt.includes('qwen 4 max') || optTxt.includes('qwen4-max') || optTxt.includes('4 max') || optTxt.includes('max')) {
-                                    opt.click();
-                                    break;
-                                }
-                            }
-                        }, 500);
-                    } catch(e) {}
-                    break;
-                }
-            }
-        }''')
-        time.sleep(2)
+        # 1. Cari dropdown model di pojok kiri atas
+        model_btn = page.locator("button:has-text('Qwen3.7-Plus'), button:has-text('Plus'), [class*='model-select'], [aria-label*='Model']").first
+        if model_btn.is_visible(timeout=3000):
+            model_btn.click()
+            time.sleep(1)
+            # 2. Klik opsi Qwen 4 Max
+            target_opt = page.locator("[role='option']:has-text('4 Max'), [role='option']:has-text('4-Max'), div:has-text('Qwen4-Max'), div:has-text('Qwen 4 Max'), span:has-text('4 Max')").first
+            if target_opt.is_visible(timeout=3000):
+                target_opt.click()
+                print("🎯 Sukses memilih model Qwen 4 Max di UI dropdown!")
+            else:
+                # Coba via JS evaluator jika overlay berada di popover
+                page.evaluate("""() => {
+                    const allItems = document.querySelectorAll('[role="option"], [class*="menu-item"], [class*="select-item"], div, span');
+                    for (const el of allItems) {
+                        const t = (el.innerText || '').toLowerCase();
+                        if (t.includes('4 max') || t.includes('4-max') || t.includes('qwen 4') || t.includes('qwen4')) {
+                            el.click();
+                            break;
+                        }
+                    }
+                }""")
+            time.sleep(1.5)
     except Exception as e:
         print(f"Notice UI model switch: {e}")
 

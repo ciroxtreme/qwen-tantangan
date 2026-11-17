@@ -54,6 +54,51 @@ def send_telegram_photo(photo_path: str, caption: str = ""):
     except Exception as e:
         print(f"[TG Photo Error] {e}")
 
+def wait_for_telegram_otp(timeout_sec: int = 180) -> str:
+    """Mendengarkan balasan chat dari Tuan Ciro di Telegram berisi kode OTP."""
+    send_telegram_msg(
+        "⏳ [INPUT DIBUTUHKAN TUAN CIRO]\n\n"
+        f"Alibaba sedang mengirim kode verifikasi ke email {TARGET_EMAIL}.\n"
+        "👉 Buka email Tuan Ciro, lalu LANGSUNG BALAS CHAT INI dengan 6 digit angka kodenya!\n"
+        f"(Bot akan menunggu sampai {timeout_sec} detik)"
+    )
+    
+    start_time = time.time()
+    last_update_id = 0
+    # Ambil offset awal agar pesan lama tidak terbaca
+    try:
+        init_url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/getUpdates?offset=-1"
+        with urllib.request.urlopen(init_url, timeout=10) as r:
+            data = json.loads(r.read().decode())
+            if data.get("result"):
+                last_update_id = data["result"][-1]["update_id"]
+    except Exception:
+        pass
+
+    while time.time() - start_time < timeout_sec:
+        time.sleep(3)
+        try:
+            url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/getUpdates?offset={last_update_id + 1}&timeout=5"
+            with urllib.request.urlopen(url, timeout=15) as r:
+                res = json.loads(r.read().decode())
+                for up in res.get("result", []):
+                    last_update_id = up["update_id"]
+                    msg = up.get("message", {})
+                    chat_id = str(msg.get("chat", {}).get("id"))
+                    text = msg.get("text", "").strip()
+                    
+                    if chat_id == str(TELEGRAM_CHAT_ID) and text:
+                        # Bersihkan spasi atau tanda hubung
+                        clean_code = "".join(filter(str.isalnum, text))
+                        if len(clean_code) in [4, 6, 8]:
+                            send_telegram_msg(f"🎯 Menerima kode OTP: {clean_code}! Memasukkan ke halaman Qwen...")
+                            return clean_code
+        except Exception as e:
+            print(f"Polling error: {e}")
+
+    send_telegram_msg("❌ Waktu habis! Tidak ada kode OTP diterima dalam batas waktu.")
+    return ""
+
 def generate_slider_trajectory(distance: float):
     traj = []
     traj.append((0.0, 0.0, random.uniform(120.0, 200.0)))
@@ -90,7 +135,6 @@ def generate_slider_trajectory(distance: float):
 
 def solve_slider_if_present(page):
     print("🔍 Memeriksa apakah Baxia Slider muncul...")
-    # Cek iframe atau elemen slider baxia / nc-container
     time.sleep(2)
     slider_btn = None
     selectors = [
@@ -110,7 +154,6 @@ def solve_slider_if_present(page):
             print(f"🎯 Slider tombol terdeteksi via selector: {s}")
             break
             
-    # Cek di dalam iframe jika ada
     if not slider_btn:
         for frame in page.frames:
             for s in selectors:
@@ -129,7 +172,6 @@ def solve_slider_if_present(page):
             start_x = box["x"] + box["width"] / 2
             start_y = box["y"] + box["height"] / 2
             
-            # Estimasi jarak geser slider Alibaba (standar track ~280-320px)
             track_distance = 300.0
             trajectory = generate_slider_trajectory(track_distance)
             
@@ -149,7 +191,7 @@ def solve_slider_if_present(page):
     return False
 
 def main():
-    send_telegram_msg(f"🚀 [QWEN-TANTANGAN] Memulai misi login otonom target: {TARGET_EMAIL}...")
+    send_telegram_msg(f"🚀 [QWEN-TANTANGAN] Memulai Misi Login Lengkap sampai Step Selesai!\nTarget: {TARGET_EMAIL}")
     
     with sync_playwright() as p:
         browser = p.chromium.launch(
@@ -167,7 +209,6 @@ def main():
             locale="id-ID",
             timezone_id="Asia/Jakarta",
         )
-        # Cloak Playwright
         context.add_init_script("""
             Object.defineProperty(navigator, 'webdriver', {get: () => undefined});
             window.chrome = { runtime: {} };
@@ -177,9 +218,6 @@ def main():
         print("1. Membuka https://chat.qwen.ai/...")
         page.goto("https://chat.qwen.ai/", wait_until="networkidle", timeout=60000)
         time.sleep(2)
-        
-        page.screenshot(path="step1_home.png")
-        send_telegram_photo("step1_home.png", "📸 Step 1: Beranda Qwen terbuka")
 
         # Cari tombol Masuk / Sign In
         print("2. Mencari tombol Masuk / Sign In...")
@@ -198,31 +236,20 @@ def main():
             print("👉 Mengklik tombol login...")
             login_btn.click()
             time.sleep(3)
-        else:
-            print("⚠️ Tombol login tidak ditemukan langsung, cek dialog...")
-
-        page.screenshot(path="step2_login_modal.png")
-        send_telegram_photo("step2_login_modal.png", "📸 Step 2: Modal Login Terbuka")
 
         # Cek form email
         print(f"3. Memasukkan email target {TARGET_EMAIL}...")
         email_input = page.locator("input[type='email'], input[placeholder*='email' i], input[placeholder*='surel' i]")
         if email_input.count() == 0:
-            # Cari input text umum
             email_input = page.locator("input[type='text']")
 
         if email_input.count() > 0 and email_input.first.is_visible():
             email_input.first.fill(TARGET_EMAIL)
             print("✅ Email berhasil diisi!")
             time.sleep(1)
-        else:
-            print("⚠️ Input email belum terlihat!")
-
-        page.screenshot(path="step3_email_filled.png")
-        send_telegram_photo("step3_email_filled.png", f"📸 Step 3: Input email {TARGET_EMAIL}")
 
         # Klik tombol Kirim Kode / Lanjut / Verifikasi
-        print("4. Mencari tombol Kirim Kode / Selanjutnya...")
+        print("4. Mencari tombol Kirim Kode / Lanjutkan...")
         submit_btn = None
         for txt in ["Kirim Kode", "Dapatkan Kode", "Send Code", "Get Code", "Lanjut", "Selanjutnya", "Next", "Continue"]:
             loc = page.get_by_role("button", name=txt)
@@ -239,18 +266,85 @@ def main():
             submit_btn.click()
             time.sleep(3)
         else:
-            # Fallback tekan Enter
-            print("👉 Menekan Enter pada input email...")
             email_input.first.press("Enter")
             time.sleep(3)
 
-        # Cek apakah memicu Baxia Slider!
+        # Cek dan selesaikan slider Baxia jika muncul
         solve_slider_if_present(page)
 
-        page.screenshot(path="step4_after_submit.png")
-        send_telegram_photo("step4_after_submit.png", "📸 Step 4: Kondisi setelah submit (menunggu OTP / slider)")
+        page.screenshot(path="step4_otp_waiting.png")
+        send_telegram_photo("step4_otp_waiting.png", "📸 Step 4: Menunggu Input Kode Verifikasi")
 
-        send_telegram_msg("🏁 Tahap awal selesai! Silakan cek foto screenshot yang dikirim ke Telegram untuk melihat respon sistem Qwen/Baxia.")
+        # STEP 5: TUNGGU KODE OTP DARI TELEGRAM TUAN CIRO
+        print("5. Menunggu input kode OTP dari Telegram Tuan Ciro...")
+        otp_code = wait_for_telegram_otp(timeout_sec=180)
+        
+        if not otp_code:
+            print("❌ Gagal login: OTP tidak diberikan.")
+            browser.close()
+            return
+
+        print(f"👉 Mengisikan kode OTP {otp_code} ke web...")
+        # Cek input OTP: bisa 6 input box terpisah, atau 1 input text
+        code_inputs = page.locator("input[maxlength='1'], input[autocomplete='one-time-code']")
+        if code_inputs.count() >= len(otp_code):
+            for idx, ch in enumerate(otp_code):
+                code_inputs.nth(idx).fill(ch)
+                time.sleep(0.1)
+        else:
+            otp_box = page.locator("input[placeholder*='kode' i], input[placeholder*='code' i], input[type='number'], input[type='tel']")
+            if otp_box.count() > 0 and otp_box.first.is_visible():
+                otp_box.first.fill(otp_code)
+            else:
+                # Fallback ke active element atau input apapun setelah email
+                inputs = page.locator("input")
+                for i in range(inputs.count()):
+                    inp = inputs.nth(i)
+                    if inp.is_visible() and inp.input_value() != TARGET_EMAIL:
+                        inp.fill(otp_code)
+                        break
+
+        time.sleep(1)
+        
+        # Klik tombol Masuk / Verifikasi / Selesai
+        confirm_btn = None
+        for txt in ["Masuk", "Verifikasi", "Konfirmasi", "Confirm", "Submit", "Verify", "Log in"]:
+            loc = page.get_by_role("button", name=txt)
+            if loc.count() > 0 and loc.first.is_visible():
+                confirm_btn = loc.first
+                break
+            loc2 = page.locator(f"button:has-text('{txt}')")
+            if loc2.count() > 0 and loc2.first.is_visible():
+                confirm_btn = loc2.first
+                break
+
+        if confirm_btn:
+            print(f"👉 Mengklik tombol konfirmasi: {confirm_btn.inner_text()}...")
+            confirm_btn.click()
+        else:
+            page.keyboard.press("Enter")
+
+        time.sleep(6)
+
+        # STEP 6: VERIFIKASI LOGIN BERHASIL & AMBIL COOKIE
+        print("6. Memeriksa status login & mengambil session cookies...")
+        page.screenshot(path="step6_login_result.png")
+        
+        cookies = context.cookies()
+        cookies_dict = {c['name']: c['value'] for c in cookies}
+        
+        # Tanda berhasil: ada token / session / cookie khusus qwen
+        is_success = any(k in cookies_dict for k in ["token", "session", "b-user-id", "login_aliyunid_ticket", "sg_sub_c_id"]) or "chat" in page.url
+        
+        if is_success:
+            caption = "🎉 [SUKSES LOGIN!] Tuan Ciro, login berhasil ditembus! Session aktif didapatkan!"
+            send_telegram_photo("step6_login_result.png", caption)
+            send_telegram_msg(f"🍪 Total Cookies Didapat: {len(cookies_dict)}\nJSON disimpan di session_qwen.json!")
+            with open("session_qwen.json", "w") as f:
+                json.dump(cookies_dict, f, indent=2)
+        else:
+            send_telegram_photo("step6_login_result.png", "⚠️ Step 6: Status setelah input OTP (periksa apakah ada error/dialog tambahan).")
+
         browser.close()
 
 if __name__ == "__main__":

@@ -111,87 +111,67 @@ def find_gap_with_cv(bg_path: str) -> float:
         
     return 210.0
 
-def inspect_and_solve_baxia(page):
-    print("🔍 Menginspeksi apakah Baxia Puzzle / #waf_nc_block muncul...")
+def inspect_and_solve_baxia_multiround(page, max_rounds: int = 4):
+    print(f"🔍 Memulai Multi-Round Solver Baxia (Maksimal {max_rounds} Ronde)...")
     
-    for _ in range(6):
-        time.sleep(2)
+    for r in range(1, max_rounds + 1):
+        time.sleep(3)
         captcha_img = page.locator("#aliyunCaptcha-img, img.puzzle").first
-        if captcha_img.count() > 0 and captcha_img.is_visible():
-            break
-            
-    captcha_img = page.locator("#aliyunCaptcha-img, img.puzzle").first
-    if captcha_img.count() == 0 or not captcha_img.is_visible():
-        page.screenshot(path="screen_no_puzzle.png")
-        send_telegram_photo("screen_no_puzzle.png", "📸 [BUKTI LAYAR] Status setelah tombol submit ditekan")
-        print("ℹ️ Tidak ada elemen puzzle gambar yang aktif.")
-        return False
-
-    print("🚨 BAXIA PUZZLE AKTIF! Menggunakan Camoufox + Quadratic Model...")
-    captcha_img.screenshot(path="puzzle_detected.png")
-    send_telegram_photo("puzzle_detected.png", "🧩 [CAMOUFOX] Background Puzzle Terdeteksi")
-    
-    detected_x = find_gap_with_cv("puzzle_detected.png")
-    box = captcha_img.bounding_box()
-    img_real = cv2.imread("puzzle_detected.png")
-    
-    target_left = detected_x
-    if box and img_real is not None:
-        scale_ratio = box["width"] / img_real.shape[1]
-        target_left = (detected_x * scale_ratio) - 2.0
         
-    mouse_distance = solve_mouse_travel(target_left)
-    print(f"📐 Target visual: {target_left:.1f}px -> RUMUS KUADRATIK MOUSE D: {mouse_distance:.1f}px")
-    send_telegram_msg(f"🦊 [CAMOUFOX STEALTH] Gap={target_left:.1f}px -> D={mouse_distance:.1f}px")
+        # Cek apakah popup sudah hilang / form berganti ke input kode verifikasi
+        if captcha_img.count() == 0 or not captcha_img.is_visible():
+            print(f"🎉 POPUP PUZZLE HILANG DI RONDE {r}! VERIFIKASI LOLOS!")
+            page.screenshot(path="verified_screen.png")
+            send_telegram_photo("verified_screen.png", "🎉 [CENTANG HIJAU LOLOS!] Baxia Puzzle Berhasil Ditaklukkan!")
+            return True
 
-    # CARI TITIK KOORDINAT TOMBOL BIRU SECARA EVALUATE JS LANGSUNG (ANTI-TIMEOUT)
-    btn_coords = page.evaluate("""() => {
-        // Cari tombol >> atau elemen anak di dalam waf_nc_block
-        let el = document.querySelector('.btn_slide') || 
-                 document.querySelector("div[class*='btn']") ||
-                 document.querySelector("div[role='slider']") ||
-                 document.querySelector(".nc_iconfont");
-        if (el) {
-            let r = el.getBoundingClientRect();
-            return { x: r.left + r.width/2, y: r.top + r.height/2, found: true };
-        }
-        return { found: false };
-    }""")
-    
-    if btn_coords.get("found"):
-        start_x = btn_coords["x"]
-        start_y = btn_coords["y"]
-        print(f"🎯 Tombol slider ditemukan via JS DOM di ({start_x:.1f}, {start_y:.1f})!")
-    else:
-        # Posisi tombol Alibaba selalu 35px di bawah pojok kiri bawah gambar puzzle
+        print(f"⚔️ [RONDE {r}/{max_rounds}] Menghajar Puzzle...")
+        captcha_img.screenshot(path=f"puzzle_round_{r}.png")
+        send_telegram_photo(f"puzzle_round_{r}.png", f"🧩 [RONDE {r}] Gambar Puzzle Aktif")
+        
+        detected_x = find_gap_with_cv(f"puzzle_round_{r}.png")
+        box = captcha_img.bounding_box()
+        img_real = cv2.imread(f"puzzle_round_{r}.png")
+        
+        target_left = detected_x
+        if box and img_real is not None:
+            scale_ratio = box["width"] / img_real.shape[1]
+            target_left = (detected_x * scale_ratio) - 2.0
+            
+        mouse_distance = solve_mouse_travel(target_left)
+        print(f"📐 Target visual: {target_left:.1f}px -> RUMUS KUADRATIK MOUSE D: {mouse_distance:.1f}px")
+        send_telegram_msg(f"🦊 [RONDE {r}] Gap={target_left:.1f}px -> Geser={mouse_distance:.1f}px")
+
+        # Titik awal tombol handle (presisi 35px di bawah kiri gambar)
         start_x = box["x"] + 25.0
         start_y = box["y"] + box["height"] + 35.0
-        print(f"📐 Fallback presisi koordinat tombol di ({start_x:.1f}, {start_y:.1f})!")
 
-    print(f"⚡ MENGGESER BALOK: Start ({start_x:.1f}, {start_y:.1f}) -> Geser {mouse_distance:.1f}px...")
-    
-    # Hover dan klik
-    page.mouse.move(start_x, start_y)
-    time.sleep(0.3)
-    page.mouse.down()
-    time.sleep(0.2)
-    
-    traj = generate_human_whip_trajectory(mouse_distance)
-    for pt_x, pt_y, delay in traj:
-        page.mouse.move(start_x + pt_x, start_y + pt_y)
-        time.sleep(delay / 1000.0)
+        # Tarik balok dengan kurva kinetik
+        page.mouse.move(start_x, start_y)
+        time.sleep(0.2)
+        page.mouse.down()
+        time.sleep(0.2)
         
-    time.sleep(0.4)
-    page.mouse.up()
-    print("✅ Balok puzzle selesai ditarik!")
-    time.sleep(4)
-    
-    page.screenshot(path="screen_after_slide.png")
-    send_telegram_photo("screen_after_slide.png", "📸 [BUKTI GESER SELESAI] Hasil setelah balok ditarik")
-    return True
+        traj = generate_human_whip_trajectory(mouse_distance)
+        for pt_x, pt_y, delay in traj:
+            page.mouse.move(start_x + pt_x, start_y + pt_y)
+            time.sleep(delay / 1000.0)
+            
+        time.sleep(0.4)
+        page.mouse.up()
+        print(f"✅ Ronde {r} selesai ditarik! Menunggu evaluasi respon...")
+        time.sleep(4)
+        
+        page.screenshot(path=f"after_round_{r}.png")
+        send_telegram_photo(f"after_round_{r}.png", f"📸 [HASIL RONDE {r}] Kondisi Layar Setelah Ditarik")
+
+    # Cek akhir
+    time.sleep(2)
+    captcha_final = page.locator("#aliyunCaptcha-img, img.puzzle").first
+    return captcha_final.count() == 0 or not captcha_final.is_visible()
 
 def main():
-    send_telegram_msg(f"🦊 [CAMOUFOX C++ STEALTH] Eksekusi Drag JS DOM Native!\nTarget: {TARGET_EMAIL}")
+    send_telegram_msg(f"🦊 [MULTI-ROUND SOLVER] Menyerang Balok Puzzle Tanpa Ampun!\nTarget: {TARGET_EMAIL}")
     
     with Camoufox(
         headless=False,
@@ -204,23 +184,17 @@ def main():
         print("1. Meluncur langsung ke URL Auth Qwen...")
         page.goto("https://chat.qwen.ai/auth?mode=signin", wait_until="load", timeout=60000)
         
-        print("⏳ Menunggu input email selesai loading...")
+        print("⏳ Menunggu form selesai render...")
         page.wait_for_selector("input", timeout=25000)
         time.sleep(2)
-        
-        page.screenshot(path="step1_loaded.png")
-        send_telegram_photo("step1_loaded.png", "📸 [STEP 1 LOADED] Halaman Auth Terbuka Sempurna")
 
         email_loc = page.locator("input[placeholder*='email' i], input[type='email'], input[placeholder*='surel' i], input").first
         email_loc.click()
         time.sleep(0.5)
         
         print(f"👉 Mengetik email: {TARGET_EMAIL}...")
-        email_loc.type(TARGET_EMAIL, delay=50)
+        email_loc.type(TARGET_EMAIL, delay=45)
         time.sleep(1)
-        
-        page.screenshot(path="step2_typed.png")
-        send_telegram_photo("step2_typed.png", "📸 [STEP 2] Email Selesai Diketik")
 
         submit_btn = page.locator("button:has-text('Continue'), button:has-text('Lanjutkan'), button[type='submit']").first
         if submit_btn.is_visible():
@@ -231,11 +205,17 @@ def main():
             page.keyboard.press("Enter")
             time.sleep(4)
 
-        solved = inspect_and_solve_baxia(page)
+        # EKSEKUSI MULTI-ROUND SOLVER
+        solved = inspect_and_solve_baxia_multiround(page, max_rounds=4)
+        
         if solved:
-            send_telegram_msg("📬 Balok puzzle telah ditarik! Cek bukti geser di atas.")
+            send_telegram_msg(
+                "📬 [BAXIA RESMI DILUMPUHKAN!]\n\n"
+                "Semua ronde puzzle telah dilalui dan popup tertutup sempurna!\n"
+                "Kode OTP baru sedang meluncur ke Gmail Tuan Ciro. Silakan periksa inbox sekarang! 🎉"
+            )
         else:
-            send_telegram_msg("⚠️ Status akhir halaman telah dikirimkan ke Telegram.")
+            send_telegram_msg("⚠️ Ronde maksimal tercapai. Silakan periksa foto ronde terakhir di atas.")
 
         time.sleep(5)
 

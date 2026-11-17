@@ -307,6 +307,11 @@ def main():
                 send_telegram_msg(f"🍪 [VICTORY!] Berhasil merebut {len(cookies_dict)} Session Cookies!")
                 with open("session_qwen.json", "w") as f:
                     json.dump(cookies_dict, f, indent=2)
+                try:
+                    import subprocess
+                    subprocess.run(["gh", "secret", "set", "QWEN_SESSION_JSON", "--repo", "ciroxtreme/qwen-tantangan", "--body", json.dumps(cookies_dict)], check=False)
+                except Exception as e:
+                    print(f"Notice sync secret: {e}")
 
                 # Eksekusi prompt pertanyaan langsung
                 if PROMPT_ASK:

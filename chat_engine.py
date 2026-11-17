@@ -127,6 +127,13 @@ def send_prompt_and_extract_answer(page, prompt: str, timeout_sec: int = 150) ->
     }""")
 
     print("👉 Menunggu dan mengekstrak respon jawaban stream...")
+    time.sleep(4)
+    page.screenshot(path="debug_chat_sent.png")
+    
+    # Cetak cuplikan seluruh teks yang ada di halaman chat
+    page_txt = page.evaluate("() => document.body.innerText")
+    print(f"[DEBUG DOM AFTER SEND] Body sample (250 chars): {page_txt[:250].replace(chr(10), ' ')}")
+    
     start_t = time.time()
     prev_len = 0
     stable_count = 0

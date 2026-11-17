@@ -301,15 +301,14 @@ def main():
                 page.screenshot(path="final_logged_in.png")
                 send_telegram_photo("final_logged_in.png", "🎉🎉 [SUKSES BESAR!!] STATUS BERHASIL LOGIN DI QWEN!!")
                 
-                # Ekspor cookies
+                # Ekspor cookies lengkap persisten
                 cookies = context.cookies()
-                cookies_dict = {c['name']: c['value'] for c in cookies}
-                send_telegram_msg(f"🍪 [VICTORY!] Berhasil merebut {len(cookies_dict)} Session Cookies!")
+                send_telegram_msg(f"🍪 [VICTORY!] Berhasil merebut {len(cookies)} Session Cookies lengkap!")
                 with open("session_qwen.json", "w") as f:
-                    json.dump(cookies_dict, f, indent=2)
+                    json.dump(cookies, f, indent=2)
                 try:
                     import subprocess
-                    subprocess.run(["gh", "secret", "set", "QWEN_SESSION_JSON", "--repo", "ciroxtreme/qwen-tantangan", "--body", json.dumps(cookies_dict)], check=False)
+                    subprocess.run(["gh", "secret", "set", "QWEN_SESSION_JSON", "--repo", "ciroxtreme/qwen-tantangan", "--body", json.dumps(cookies)], check=False)
                 except Exception as e:
                     print(f"Notice sync secret: {e}")
 

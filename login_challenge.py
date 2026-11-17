@@ -115,56 +115,58 @@ def find_gap_with_cv(bg_path: str) -> float:
 def inspect_and_solve_baxia(page):
     print("🔍 Menginspeksi apakah Baxia Puzzle / #waf_nc_block muncul...")
     
-    for attempt in range(1, 4):
-        time.sleep(3)
+    # Tunggu dan cari puzzle hingga 15 detik
+    for _ in range(5):
+        time.sleep(2)
         captcha_img = page.locator("#aliyunCaptcha-img, img.puzzle").first
-        if captcha_img.count() == 0 or not captcha_img.is_visible():
-            print("ℹ️ Gambar puzzle tidak terlihat, verifikasi berhasil atau tidak muncul.")
-            return True
+        if captcha_img.count() > 0 and captcha_img.is_visible():
+            break
+            
+    captcha_img = page.locator("#aliyunCaptcha-img, img.puzzle").first
+    if captcha_img.count() == 0 or not captcha_img.is_visible():
+        page.screenshot(path="screen_no_puzzle.png")
+        send_telegram_photo("screen_no_puzzle.png", "📸 [BUKTI LAYAR] Status tepat setelah tombol submit ditekan")
+        print("ℹ️ Tidak ada elemen puzzle gambar yang aktif.")
+        return False
 
-        print(f"🚨 [PERCOBAAN {attempt}] BAXIA PUZZLE AKTIF! Menggunakan Camoufox + Quadratic Model...")
-        captcha_img.screenshot(path=f"puzzle_{attempt}.png")
-        send_telegram_photo(f"puzzle_{attempt}.png", f"🧩 [CAMOUFOX ATTEMPT {attempt}] Background Puzzle")
+    print("🚨 BAXIA PUZZLE AKTIF! Menggunakan Camoufox + Quadratic Model...")
+    captcha_img.screenshot(path="puzzle_detected.png")
+    send_telegram_photo("puzzle_detected.png", "🧩 [CAMOUFOX] Background Puzzle Terdeteksi")
+    
+    detected_x = find_gap_with_cv("puzzle_detected.png")
+    box = captcha_img.bounding_box()
+    img_real = cv2.imread("puzzle_detected.png")
+    
+    target_left = detected_x
+    if box and img_real is not None:
+        scale_ratio = box["width"] / img_real.shape[1]
+        target_left = (detected_x * scale_ratio) - 2.0
         
-        detected_x = find_gap_with_cv(f"puzzle_{attempt}.png")
-        box = captcha_img.bounding_box()
-        img_real = cv2.imread(f"puzzle_{attempt}.png")
-        
-        target_left = detected_x
-        if box and img_real is not None:
-            scale_ratio = box["width"] / img_real.shape[1]
-            target_left = (detected_x * scale_ratio) - 2.0
-            
-        mouse_distance = solve_mouse_travel(target_left)
-        print(f"📐 Target visual: {target_left:.1f}px -> RUMUS KUADRATIK MOUSE D: {mouse_distance:.1f}px")
-        send_telegram_msg(f"🦊 [CAMOUFOX STEALTH] Gap={target_left:.1f}px -> D={mouse_distance:.1f}px")
+    mouse_distance = solve_mouse_travel(target_left)
+    print(f"📐 Target visual: {target_left:.1f}px -> RUMUS KUADRATIK MOUSE D: {mouse_distance:.1f}px")
+    send_telegram_msg(f"🦊 [CAMOUFOX STEALTH] Gap={target_left:.1f}px -> D={mouse_distance:.1f}px")
 
-        start_x = box["x"] + 25.0
-        start_y = box["y"] + box["height"] + 25.0
+    start_x = box["x"] + 25.0
+    start_y = box["y"] + box["height"] + 25.0
+    
+    traj = generate_human_whip_trajectory(mouse_distance)
+    
+    page.mouse.move(start_x, start_y)
+    time.sleep(0.2)
+    page.mouse.down()
+    
+    for pt_x, pt_y, delay in traj:
+        page.mouse.move(start_x + pt_x, start_y + pt_y)
+        time.sleep(delay / 1000.0)
         
-        traj = generate_human_whip_trajectory(mouse_distance)
-        
-        page.mouse.move(start_x, start_y)
-        time.sleep(0.2)
-        page.mouse.down()
-        
-        for pt_x, pt_y, delay in traj:
-            page.mouse.move(start_x + pt_x, start_y + pt_y)
-            time.sleep(delay / 1000.0)
-            
-        time.sleep(0.35)
-        page.mouse.up()
-        print("✅ Balok puzzle selesai digeser via Camoufox C++ Engine!")
-        time.sleep(4)
-        
-        page.screenshot(path=f"after_{attempt}.png")
-        send_telegram_photo(f"after_{attempt}.png", f"📸 [HASIL CAMOUFOX {attempt}] Evaluasi Posisi Balok")
-        
-        if not captcha_img.is_visible() or page.locator("input[placeholder*='kode' i], input[autocomplete='one-time-code']").count() > 0:
-            print("🎉 BAXIA PUZZLE BERHASIL DITEMBUS (T001)!")
-            return True
-            
-    return False
+    time.sleep(0.35)
+    page.mouse.up()
+    print("✅ Balok puzzle selesai digeser via Camoufox C++ Engine!")
+    time.sleep(4)
+    
+    page.screenshot(path="screen_after_slide.png")
+    send_telegram_photo("screen_after_slide.png", "📸 [BUKTI GESER] Kondisi layar setelah balok dipasang")
+    return True
 
 def main():
     send_telegram_msg(f"🦊 [CAMOUFOX C++ STEALTH] Memulai Pertarungan Anti-Baxia di Virtual Display!\nTarget: {TARGET_EMAIL}")
@@ -207,9 +209,6 @@ def main():
         print("1. Membuka https://chat.qwen.ai/...")
         page.goto("https://chat.qwen.ai/", wait_until="networkidle", timeout=60000)
         time.sleep(3)
-        
-        page.screenshot(path="camoufox_step1.png")
-        send_telegram_photo("camoufox_step1.png", "📸 [CAMOUFOX STEP 1] Beranda Qwen")
 
         # Cari tombol Masuk / Sign In
         login_btn = None
@@ -228,64 +227,36 @@ def main():
             login_btn.click()
             time.sleep(4)
 
-        page.screenshot(path="camoufox_step2_modal.png")
-        send_telegram_photo("camoufox_step2_modal.png", "📸 [CAMOUFOX STEP 2] Modal Login Terbuka")
-
-        # Cari input email dengan selector fleksibel
-        email_input = None
-        selectors = [
-            "input[type='email']",
-            "input[placeholder*='email' i]",
-            "input[placeholder*='surel' i]",
-            "input[name*='email' i]",
-            "input[name*='account' i]",
-            "input[type='text']"
-        ]
-        for sel in selectors:
-            loc = page.locator(sel)
-            if loc.count() > 0 and loc.first.is_visible():
-                email_input = loc.first
-                break
-
-        if email_input:
+        # Cari input email
+        email_input = page.locator("input[placeholder*='email' i], input[type='email'], input[placeholder*='surel' i]").first
+        if email_input.is_visible():
             print(f"👉 Mengisikan email target {TARGET_EMAIL}...")
             email_input.click()
-            email_input.fill(TARGET_EMAIL)
+            time.sleep(0.5)
+            # Ketik per karakter seperti manusia
+            email_input.type(TARGET_EMAIL, delay=40)
             time.sleep(1)
-        else:
-            print("⚠️ Input email tidak ditemukan secara spesifik!")
 
-        # Cari tombol Lanjutkan
-        submit_btn = None
-        for txt in ["Lanjutkan", "Lanjut", "Kirim Kode", "Dapatkan Kode", "Send Code", "Next", "Continue"]:
-            loc = page.get_by_role("button", name=txt)
-            if loc.count() > 0 and loc.first.is_visible():
-                submit_btn = loc.first
-                break
-            loc2 = page.locator(f"button:has-text('{txt}')")
-            if loc2.count() > 0 and loc2.first.is_visible():
-                submit_btn = loc2.first
-                break
+        page.screenshot(path="camoufox_email_typed.png")
+        send_telegram_photo("camoufox_email_typed.png", "📸 [STEP 2] Email sudah terketik di form")
 
-        if submit_btn:
-            print("👉 Mengklik tombol submit/lanjutkan...")
+        # Cari tombol Continue / Lanjutkan
+        submit_btn = page.locator("button:has-text('Continue'), button:has-text('Lanjutkan'), button[type='submit']").first
+        if submit_btn.is_visible():
+            print("👉 Mengklik tombol Continue...")
             submit_btn.click()
             time.sleep(3)
-        elif email_input:
+        else:
             email_input.press("Enter")
             time.sleep(3)
 
-        # SELESAIKAN BAXIA DENGAN CAMOUFOX
+        # CEK & GESER BAXIA PUZZLE
         solved = inspect_and_solve_baxia(page)
         
         if solved:
-            send_telegram_msg(
-                "📬 [BAXIA BERHASIL DILEWATI!] 🎉\n\n"
-                "Camoufox C++ Engine berhasil melumpuhkan deteksi F001!\n"
-                "Kode OTP baru sedang meluncur ke Gmail Tuan Ciro. Cek inbox sekarang!"
-            )
+            send_telegram_msg("📬 Balok puzzle telah digeser! Cek screenshot bukti geser di atas.")
         else:
-            send_telegram_msg("⚠️ Status evaluasi attempt Camoufox terkirim ke Telegram.")
+            send_telegram_msg("⚠️ Puzzle tidak muncul atau form tidak berpindah. Cek screenshot bukti layar.")
 
         time.sleep(5)
 

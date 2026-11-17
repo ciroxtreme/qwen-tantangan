@@ -1,4 +1,4 @@
-name: Qwen Login Challenge (Camoufox Stealth)
+name: Qwen Login Challenge & Relay (Camoufox Stealth)
 
 on:
   workflow_dispatch:
@@ -7,6 +7,10 @@ on:
         description: "Email target untuk login"
         required: true
         default: "tuanciroxtreme@gmail.com"
+      prompt:
+        description: "Pertanyaan opsional untuk Qwen"
+        required: false
+        default: ""
 
 jobs:
   run-challenge:
@@ -20,6 +24,13 @@ jobs:
         with:
           python-version: "3.11"
 
+      - name: Cache Camoufox Browser
+        id: camoufox-cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/camoufox
+          key: ${{ runner.os }}-camoufox-browser-v1
+
       - name: Install dependencies
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -28,10 +39,18 @@ jobs:
           pip install "camoufox[geoip]" opencv-python-headless numpy
           camoufox fetch
 
-      - name: Run Login Challenge with Camoufox & Virtual Display
+      - name: Run Login & Relay Engine with Camoufox
         env:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
           TARGET_EMAIL: ${{ github.event.inputs.email }}
+          PROMPT_ASK: ${{ github.event.inputs.prompt }}
         run: |
-          xvfb-run -a python login_challenge.py
+          xvfb-run -a python login_challenge.py "${{ github.event.inputs.prompt }}"
+
+      - name: Commit Updated Session If Changed
+        run: |
+          git config user.name "Ciro Session Bot"
+          git config user.email "ciro@automated.local"
+          git add session_qwen.json || true
+          git diff --quiet && git diff --staged --quiet || (git commit -m "Auto-persist session_qwen.json [skip ci]" && git push origin main)

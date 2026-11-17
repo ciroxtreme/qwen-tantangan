@@ -9,10 +9,12 @@ import urllib.parse
 from camoufox.sync_api import Camoufox
 import cv2
 import numpy as np
+from chat_engine import send_prompt_and_extract_answer
 
 TELEGRAM_BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN")
 TELEGRAM_CHAT_ID = os.environ.get("TELEGRAM_CHAT_ID")
 TARGET_EMAIL = os.environ.get("TARGET_EMAIL", "tuanciroxtreme@gmail.com")
+PROMPT_ASK = sys.argv[1] if len(sys.argv) > 1 and not sys.argv[1].startswith("--") else os.environ.get("PROMPT_ASK", "")
 
 def send_telegram_msg(text: str):
     if not (TELEGRAM_BOT_TOKEN and TELEGRAM_CHAT_ID):
@@ -128,39 +130,39 @@ def wait_for_telegram_otp(timeout_sec: int = 180) -> str:
         pass
 
     while time.time() - start_time < timeout_sec:
-        time.sleep(3)
+        time.sleep(2.5)
         try:
-            url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/getUpdates?offset={last_update_id + 1}&timeout=5"
-            with urllib.request.urlopen(url, timeout=15) as r:
-                res = json.loads(r.read().decode())
-                for up in res.get("result", []):
-                    last_update_id = up["update_id"]
-                    msg = up.get("message", {})
+            url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/getUpdates?offset={last_update_id + 1}"
+            with urllib.request.urlopen(url, timeout=10) as r:
+                data = json.loads(r.read().decode())
+                for item in data.get("result", []):
+                    last_update_id = item["update_id"]
+                    msg = item.get("message", {})
                     chat_id = str(msg.get("chat", {}).get("id"))
                     text = msg.get("text", "").strip()
+                    
                     if chat_id == str(TELEGRAM_CHAT_ID) and text:
-                        clean_code = "".join(filter(str.isalnum, text))
-                        if len(clean_code) in [4, 6, 8]:
-                            send_telegram_msg(f"🎯 Menerima kode OTP: {clean_code}! Memasukkan ke web...")
-                            return clean_code
+                        cleaned = "".join([c for c in text if c.isdigit()])
+                        if len(cleaned) == 6:
+                            send_telegram_msg(f"✅ OTP Diterima: {cleaned}. Memasukkan ke Qwen...")
+                            return cleaned
         except Exception:
             pass
+
+    send_telegram_msg("❌ Timeout menunggu OTP dari Telegram (180 detik).")
     return ""
 
 def inspect_and_solve_baxia_multiround(page, max_rounds: int = 4):
-    print(f"🔍 Memulai Multi-Round Solver Baxia (Maksimal {max_rounds} Ronde)...")
-    
     for r in range(1, max_rounds + 1):
+        print(f"\n🔍 [RONDE {r}] Memeriksa status CAPTCHA / Baxia...")
         time.sleep(3)
-        captcha_img = page.locator("#aliyunCaptcha-img, img.puzzle").first
         
+        captcha_img = page.locator("#aliyunCaptcha-img, img.puzzle").first
         if captcha_img.count() == 0 or not captcha_img.is_visible():
-            print(f"🎉 POPUP PUZZLE HILANG DI RONDE {r}! VERIFIKASI LOLOS!")
-            page.screenshot(path="verified_screen.png")
-            send_telegram_photo("verified_screen.png", "🎉 [CENTANG HIJAU LOLOS!] Baxia Puzzle Berhasil Ditaklukkan!")
+            print(f"🎉 Tidak ada CAPTCHA yang terdeteksi di Ronde {r}. Lolos!")
             return True
 
-        print(f"⚔️ [RONDE {r}/{max_rounds}] Menghajar Puzzle...")
+        print(f"🧩 Ronde {r}: Baxia puzzle terdeteksi. Mengambil screenshot puzzle...")
         captcha_img.screenshot(path=f"puzzle_round_{r}.png")
         send_telegram_photo(f"puzzle_round_{r}.png", f"🧩 [RONDE {r}] Gambar Puzzle Aktif")
         
@@ -203,7 +205,7 @@ def inspect_and_solve_baxia_multiround(page, max_rounds: int = 4):
     return captcha_final.count() == 0 or not captcha_final.is_visible()
 
 def main():
-    send_telegram_msg(f"🦊 [QWEN-TANTANGAN] Final Battle: Solver + Standby OTP!\nTarget: {TARGET_EMAIL}")
+    send_telegram_msg(f"🦊 [QWEN-RELAY] Camoufox Stealth Engine Aktif!\nTarget: {TARGET_EMAIL}")
     
     with Camoufox(
         headless=False,
@@ -211,7 +213,41 @@ def main():
         i_know_what_im_doing=True
     ) as browser:
         context = browser.new_context(viewport={"width": 1280, "height": 800})
+        
+        # 1. Coba gunakan sesi tersimpan jika ada
+        if os.path.exists("session_qwen.json"):
+            try:
+                with open("session_qwen.json") as f_s:
+                    saved_c = json.load(f_s)
+                    c_list = []
+                    if isinstance(saved_c, dict):
+                        for k, v in saved_c.items():
+                            c_list.append({"name": k, "value": str(v), "domain": ".qwen.ai", "path": "/"})
+                    elif isinstance(saved_c, list):
+                        c_list = saved_c
+                    context.add_cookies(c_list)
+                    print(f"🍪 [INIT] Memuat {len(c_list)} cookies sesi dari session_qwen.json")
+            except Exception as e:
+                print(f"Warning init cookies: {e}")
+
         page = context.new_page()
+
+        # Cek apakah sesi aktif langsung ke chat tanpa login ulang
+        if os.path.exists("session_qwen.json"):
+            print("🚀 Memeriksa status login langsung di chat.qwen.ai...")
+            page.goto("https://chat.qwen.ai/", wait_until="domcontentloaded", timeout=45000)
+            time.sleep(3)
+            body_txt = page.evaluate("() => document.body.innerText")
+            if not (("Masuk" in body_txt and "Daftar" in body_txt) or "Login" in body_txt):
+                print("🎉 [AUTO-LOGIN PERSISTEN] Sesi aktif! Langsung mengeksekusi chat!")
+                if PROMPT_ASK:
+                    answer = send_prompt_and_extract_answer(page, PROMPT_ASK)
+                    print("\n" + "="*40 + " QWEN FINAL ANSWER " + "="*40 + "\n")
+                    print(answer)
+                    print("\n" + "="*95 + "\n")
+                    if answer:
+                        send_telegram_msg(f"✨ [JAWABAN QWEN 4 MAX]:\n\n{answer}")
+                return
 
         print("1. Meluncur langsung ke URL Auth Qwen...")
         page.goto("https://chat.qwen.ai/auth?mode=signin", wait_until="load", timeout=60000)
@@ -249,7 +285,6 @@ def main():
                 print(f"👉 Memasukkan OTP {otp} ke form...")
                 time.sleep(2)
                 
-                # Cek input code
                 code_inputs = page.locator("input[maxlength='1'], input[autocomplete='one-time-code']")
                 if code_inputs.count() >= len(otp):
                     for idx, ch in enumerate(otp):
@@ -272,6 +307,16 @@ def main():
                 send_telegram_msg(f"🍪 [VICTORY!] Berhasil merebut {len(cookies_dict)} Session Cookies!")
                 with open("session_qwen.json", "w") as f:
                     json.dump(cookies_dict, f, indent=2)
+
+                # Eksekusi prompt pertanyaan langsung
+                if PROMPT_ASK:
+                    send_telegram_msg(f"🧠 [QWEN RELAY] Mengirimkan pertanyaan ke Qwen 4 Max...")
+                    answer = send_prompt_and_extract_answer(page, PROMPT_ASK)
+                    print("\n" + "="*40 + " QWEN FINAL ANSWER " + "="*40 + "\n")
+                    print(answer)
+                    print("\n" + "="*95 + "\n")
+                    if answer:
+                        send_telegram_msg(f"✨ [JAWABAN QWEN 4 MAX]:\n\n{answer}")
         else:
             send_telegram_msg("⚠️ Belum berhasil melewati ronde puzzle.")
 

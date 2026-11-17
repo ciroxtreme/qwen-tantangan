@@ -13,6 +13,7 @@ import numpy as np
 TELEGRAM_BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN")
 TELEGRAM_CHAT_ID = os.environ.get("TELEGRAM_CHAT_ID")
 TARGET_EMAIL = os.environ.get("TARGET_EMAIL", "tuanciroxtreme@gmail.com")
+PRESET_OTP = os.environ.get("PRESET_OTP", "")
 
 def send_telegram_msg(text: str):
     if not (TELEGRAM_BOT_TOKEN and TELEGRAM_CHAT_ID):
@@ -56,52 +57,10 @@ def send_telegram_photo(photo_path: str, caption: str = ""):
     except Exception as e:
         print(f"[TG Photo Error] {e}")
 
-def wait_for_telegram_otp(timeout_sec: int = 180) -> str:
-    send_telegram_msg(
-        "⏳ [KODE OTP TELAH TERKIRIM KE EMAIL!]\n\n"
-        f"Tuan Ciro, Baxia Puzzle BERHASIL DITEMBUS! 🎉\n"
-        f"Sekarang buka email {TARGET_EMAIL}, lalu BALAS CHAT INI dengan 6 digit kode OTP-nya!\n"
-        f"(Bot standby {timeout_sec} detik)"
-    )
-    
-    start_time = time.time()
-    last_update_id = 0
-    try:
-        init_url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/getUpdates?offset=-1"
-        with urllib.request.urlopen(init_url, timeout=10) as r:
-            data = json.loads(r.read().decode())
-            if data.get("result"):
-                last_update_id = data["result"][-1]["update_id"]
-    except Exception:
-        pass
-
-    while time.time() - start_time < timeout_sec:
-        time.sleep(3)
-        try:
-            url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/getUpdates?offset={last_update_id + 1}&timeout=5"
-            with urllib.request.urlopen(url, timeout=15) as r:
-                res = json.loads(r.read().decode())
-                for up in res.get("result", []):
-                    last_update_id = up["update_id"]
-                    msg = up.get("message", {})
-                    chat_id = str(msg.get("chat", {}).get("id"))
-                    text = msg.get("text", "").strip()
-                    
-                    if chat_id == str(TELEGRAM_CHAT_ID) and text:
-                        clean_code = "".join(filter(str.isalnum, text))
-                        if len(clean_code) in [4, 6, 8]:
-                            send_telegram_msg(f"🎯 Menerima kode OTP: {clean_code}! Memasukkan ke form...")
-                            return clean_code
-        except Exception as e:
-            print(f"Polling error: {e}")
-
-    send_telegram_msg("❌ Waktu habis! Kode OTP tidak diterima.")
-    return ""
-
 def generate_slider_trajectory(distance: float):
     traj = []
     traj.append((0.0, 0.0, random.uniform(140.0, 220.0)))
-    steps = random.randint(18, 25)
+    steps = random.randint(18, 26)
     jitter = 2.0
 
     for i in range(steps):
@@ -122,7 +81,7 @@ def generate_slider_trajectory(distance: float):
         x = distance * eased
         drift = -0.5 - p * 3.0
         y = drift + math.sin(p * math.pi * random.uniform(1.2, 2.5)) * jitter
-        delay = random.uniform(18.0, 38.0)
+        delay = random.uniform(18.0, 36.0)
         traj.append((round(x, 1), round(y, 1), round(delay, 1)))
 
     # Micro overshoot & pull-back
@@ -138,105 +97,81 @@ def find_gap_with_cv(bg_path: str) -> float:
         return 200.0
     gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
     edges = cv2.Canny(gray, 100, 200)
-    # Mask out sisi kiri (posisi awal balok puzzle)
     edges[:, :60] = 0
     
     contours, _ = cv2.findContours(edges, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
     candidates = []
     for c in contours:
         x, y, w, h = cv2.boundingRect(c)
-        if 30 <= w <= 70 and 30 <= h <= 70:
+        if 25 <= w <= 80 and 25 <= h <= 80:
             candidates.append((x, y, w, h))
             
     if candidates:
-        # Ambil candidate yang paling mendekati bentuk kotak puzzle
         candidates.sort(key=lambda item: abs(item[2] - item[3]))
         target_x = candidates[0][0]
-        print(f"🎯 OpenCV mendeteksi lubang puzzle di koordinat X={target_x} (w={candidates[0][2]}, h={candidates[0][3]})")
+        print(f"🎯 OpenCV mendeteksi lubang puzzle di X={target_x} (w={candidates[0][2]}, h={candidates[0][3]})")
         return float(target_x)
         
-    return 200.0
+    return 195.0
 
-def solve_baxia_puzzle(page):
-    print("🔍 Menunggu dan mendeteksi Baxia Puzzle Modal...")
-    time.sleep(3)
-    
-    # Cek apakah ada popup Access Verification
-    modal = page.locator("text='Access Verification', text='Drag to complete the puzzle', div[class*='baxia']")
-    if modal.count() == 0 or not modal.first.is_visible():
-        print("ℹ️ Tidak ada modal Baxia yang terlihat saat ini.")
-        return False
-
-    print("🚨 BAXIA PUZZLE TERDETEKSI! Memulai solver...")
-    send_telegram_msg("⚔️ [BAXIA PUZZLE MENGHADANG!] Memulai Computer Vision Edge Matching & Trajectory Solver...")
-
-    # Cari slider handle (tombol >>)
-    slider_handle = page.locator(".nc_iconfont.btn_slide, div[class*='btn_slide'], div[class*='slider'] span, div[class*='slider'] div, div:has-text('>>')").last
-    if not slider_handle.is_visible():
-        slider_handle = page.locator("div[role='slider'], div[class*='handle']").first
-
-    # Cari background puzzle image
-    bg_elem = page.locator("img[class*='bg'], div[class*='bg'] img, canvas[class*='bg'], img[alt*='puzzle' i], img[src*='data:image']").first
-    
-    distance = 200.0
-    if bg_elem.count() > 0 and bg_elem.is_visible():
-        try:
-            bg_elem.screenshot(path="puzzle_bg.png")
-            send_telegram_photo("puzzle_bg.png", "🧩 [ANALISIS CV] Gambar Background Puzzle Terpotong")
-            detected_x = find_gap_with_cv("puzzle_bg.png")
-            # Skala rasio jika gambar di-downscale oleh CSS
-            box = bg_elem.bounding_box()
-            img_real = cv2.imread("puzzle_bg.png")
+def solve_baxia_waf_puzzle(page):
+    print("🔍 Memeriksa apakah #aliyunCaptcha-img / #waf_nc_block muncul...")
+    for _ in range(10):
+        time.sleep(1)
+        # Cek selector gambar puzzle Alibaba
+        captcha_img = page.locator("#aliyunCaptcha-img, img.puzzle, div#waf_nc_block img").first
+        if captcha_img.count() > 0 and captcha_img.is_visible():
+            print("🚨 BAXIA WAF PUZZLE TERDETEKSI! Memulai solver...")
+            send_telegram_msg("⚔️ [BAXIA WAF PUZZLE TERDETEKSI!] Memotong background & menghitung gap target...")
+            
+            captcha_img.screenshot(path="waf_puzzle_bg.png")
+            send_telegram_photo("waf_puzzle_bg.png", "🧩 [OPEN-CV] Gambar Background Puzzle Alibaba")
+            
+            detected_x = find_gap_with_cv("waf_puzzle_bg.png")
+            
+            # Cek rasio ukuran rendering di layar
+            box = captcha_img.bounding_box()
+            img_real = cv2.imread("waf_puzzle_bg.png")
+            distance = detected_x
             if box and img_real is not None:
                 scale_ratio = box["width"] / img_real.shape[1]
                 distance = detected_x * scale_ratio
-                print(f"📐 Scaled distance: {distance}px (ratio {scale_ratio:.2f})")
-            else:
-                distance = detected_x
-        except Exception as e:
-            print(f"CV detect error: {e}")
-            distance = 195.0
-    else:
-        # Screenshot area modal untuk hitung perkiraan posisi lubang puzzle
-        page.screenshot(path="modal_puzzle.png")
-        distance = 195.0
-
-    print(f"🎯 Target geser slider: {distance:.1f}px")
-    
-    # Ambil posisi kursor handle slider
-    handle_box = slider_handle.bounding_box()
-    if not handle_box:
-        # Fallback cari tombol biru >>
-        blue_btn = page.locator("div:has-text('>>'), span:has-text('>>')").last
-        handle_box = blue_btn.bounding_box()
-
-    if handle_box:
-        start_x = handle_box["x"] + handle_box["width"] / 2
-        start_y = handle_box["y"] + handle_box["height"] / 2
-        
-        trajectory = generate_slider_trajectory(distance)
-        
-        page.mouse.move(start_x, start_y)
-        time.sleep(0.15)
-        page.mouse.down()
-        
-        for pt_x, pt_y, delay in trajectory:
-            page.mouse.move(start_x + pt_x, start_y + pt_y)
-            time.sleep(delay / 1000.0)
+                print(f"📐 Scaled distance: {distance}px (ratio: {scale_ratio:.2f})")
+                
+            # Cari tombol slider geser
+            slider_btn = page.locator("#aliyunCaptcha-btn, .nc_iconfont.btn_slide, div[id*='btn'], div[class*='btn_slide'], div[class*='slider'] span").first
+            btn_box = slider_btn.bounding_box()
             
-        time.sleep(0.25)
-        page.mouse.up()
-        print("✅ Balok puzzle telah digeser ke target lubang!")
-        time.sleep(4)
-        
-        page.screenshot(path="after_slider_solved.png")
-        send_telegram_photo("after_slider_solved.png", "📸 Status setelah puzzle digeser")
-        return True
+            if not btn_box:
+                # Fallback: cari elemen tombol di bawah gambar puzzle
+                slider_btn = page.locator("div[role='slider'], div#waf_nc_block div[class*='button']").first
+                btn_box = slider_btn.bounding_box()
 
+            if btn_box:
+                start_x = btn_box["x"] + btn_box["width"] / 2
+                start_y = btn_box["y"] + btn_box["height"] / 2
+                
+                print(f"⚡ Menggeser slider dari X={start_x}, Y={start_y} sejauh {distance}px...")
+                traj = generate_slider_trajectory(distance)
+                
+                page.mouse.move(start_x, start_y)
+                time.sleep(0.15)
+                page.mouse.down()
+                for pt_x, pt_y, delay in traj:
+                    page.mouse.move(start_x + pt_x, start_y + pt_y)
+                    time.sleep(delay / 1000.0)
+                time.sleep(0.2)
+                page.mouse.up()
+                print("✅ Puzzle telah digeser!")
+                time.sleep(4)
+                
+                page.screenshot(path="after_waf_solve.png")
+                send_telegram_photo("after_waf_solve.png", "📸 Status setelah WAF Puzzle digeser")
+                return True
     return False
 
 def main():
-    send_telegram_msg(f"🚀 [QWEN-TANTANGAN] Meluncurkan Full Automation + OpenCV Solver!\nTarget: {TARGET_EMAIL}")
+    send_telegram_msg(f"🚀 [QWEN-TANTANGAN] Eksekusi Login Target: {TARGET_EMAIL}\nOTP Target: {PRESET_OTP or 'Menunggu Input'}")
     
     with sync_playwright() as p:
         browser = p.chromium.launch(
@@ -293,7 +228,7 @@ def main():
             print("✅ Email berhasil diisi!")
             time.sleep(1)
 
-        # Klik tombol Lanjutkan / Kirim Kode
+        # Klik tombol Lanjutkan
         print("4. Mengklik tombol Lanjutkan...")
         submit_btn = None
         for txt in ["Lanjutkan", "Lanjut", "Kirim Kode", "Dapatkan Kode", "Send Code", "Next", "Continue"]:
@@ -301,7 +236,7 @@ def main():
             if loc.count() > 0 and loc.first.is_visible():
                 submit_btn = loc.first
                 break
-            loc2 = page.locator(f"button:has-text('{txt}'), div[role='button']:has-text('{txt}')")
+            loc2 = page.locator(f"button:has-text('{txt}')")
             if loc2.count() > 0 and loc2.first.is_visible():
                 submit_btn = loc2.first
                 break
@@ -314,18 +249,17 @@ def main():
             time.sleep(3)
 
         # BAXIA PUZZLE SOLVER!
-        solve_baxia_puzzle(page)
+        solve_baxia_waf_puzzle(page)
 
-        # STEP 5: TUNGGU KODE OTP DARI TELEGRAM TUAN CIRO
-        print("5. Menunggu input kode OTP dari Telegram Tuan Ciro...")
-        otp_code = wait_for_telegram_otp(timeout_sec=180)
-        
+        # STEP 5: INPUT KODE OTP
+        otp_code = PRESET_OTP
         if not otp_code:
-            print("❌ Gagal login: OTP tidak diberikan.")
-            browser.close()
+            # Jika tidak ada preset, kirim alert
+            send_telegram_msg("⚠️ Tidak ada preset OTP, mohon masukkan via parameter!")
             return
 
         print(f"👉 Mengisikan kode OTP {otp_code} ke web...")
+        time.sleep(2)
         code_inputs = page.locator("input[maxlength='1'], input[autocomplete='one-time-code']")
         if code_inputs.count() >= len(otp_code):
             for idx, ch in enumerate(otp_code):
@@ -345,23 +279,21 @@ def main():
 
         time.sleep(1)
         
+        # Cari tombol Konfirmasi (bukan tombol 'Masuk dengan kata sandi')
         confirm_btn = None
-        for txt in ["Masuk", "Verifikasi", "Konfirmasi", "Confirm", "Submit", "Verify", "Log in"]:
+        for txt in ["Konfirmasi", "Verifikasi", "Confirm", "Verify", "Lanjutkan"]:
             loc = page.get_by_role("button", name=txt)
             if loc.count() > 0 and loc.first.is_visible():
                 confirm_btn = loc.first
                 break
-            loc2 = page.locator(f"button:has-text('{txt}')")
-            if loc2.count() > 0 and loc2.first.is_visible():
-                confirm_btn = loc2.first
-                break
 
         if confirm_btn:
+            print(f"👉 Mengklik tombol konfirmasi: {confirm_btn.inner_text()}...")
             confirm_btn.click()
         else:
             page.keyboard.press("Enter")
 
-        time.sleep(6)
+        time.sleep(8)
 
         # STEP 6: VERIFIKASI LOGIN & AMBIL SESSION
         print("6. Memeriksa status login & mengambil session cookies...")
@@ -375,11 +307,11 @@ def main():
         if is_success:
             caption = "🎉 [SUKSES LOGIN!] Tuan Ciro, login berhasil ditembus! Session aktif didapatkan!"
             send_telegram_photo("step6_login_result.png", caption)
-            send_telegram_msg(f"🍪 Total Cookies Didapat: {len(cookies_dict)}\nJSON disimpan di session_qwen.json!")
+            send_telegram_msg(f"🍪 Total Cookies Didapat: {len(cookies_dict)}\nJSON tersimpan!")
             with open("session_qwen.json", "w") as f:
                 json.dump(cookies_dict, f, indent=2)
         else:
-            send_telegram_photo("step6_login_result.png", "⚠️ Step 6: Status setelah input OTP.")
+            send_telegram_photo("step6_login_result.png", "⚠️ Step 6: Status akhir login.")
 
         browser.close()
 

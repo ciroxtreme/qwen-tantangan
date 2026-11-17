@@ -205,7 +205,7 @@ def inspect_and_solve_baxia_multiround(page, max_rounds: int = 4):
     return captcha_final.count() == 0 or not captcha_final.is_visible()
 
 def main():
-    send_telegram_msg(f"🦊 [QWEN-RELAY] Camoufox Stealth Engine Aktif!\nTarget: {TARGET_EMAIL}")
+    send_telegram_msg(f"🦊 [TAHAP 1/5] Inisialisasi Stealth Browser Camoufox...\nTarget: {TARGET_EMAIL}")
     
     with Camoufox(
         headless=False,
@@ -249,7 +249,7 @@ def main():
                         send_telegram_msg(f"✨ [JAWABAN QWEN 4 MAX]:\n\n{answer}")
                 return
 
-        print("1. Meluncur langsung ke URL Auth Qwen...")
+        send_telegram_msg("🌐 [TAHAP 2/5] Membuka halaman login Qwen & mengisi email..."); print("1. Meluncur langsung ke URL Auth Qwen...")
         page.goto("https://chat.qwen.ai/auth?mode=signin", wait_until="load", timeout=60000)
         
         print("⏳ Menunggu form selesai render...")
@@ -277,12 +277,12 @@ def main():
         solved = inspect_and_solve_baxia_multiround(page, max_rounds=4)
         
         if solved:
-            send_telegram_msg("📬 BAXIA LOLOS! Menunggu Tuan Ciro mengirimkan kode OTP di Telegram...")
+            send_telegram_msg("🧩 [TAHAP 3/5] Puzzle Baxia sukses ditembus! Form OTP terbuka.\nMenunggu balasan kode OTP Tuan Ciro di chat ini...")
             
             # STANDBY MENERIMA OTP DARI TELEGRAM TUAN CIRO
             otp = wait_for_telegram_otp(timeout_sec=180)
             if otp:
-                print(f"👉 Memasukkan OTP {otp} ke form...")
+                send_telegram_msg(f"⌨️ [TAHAP 4/5] Memasukkan OTP {otp} dan submit verifikasi..."); print(f"👉 Memasukkan OTP {otp} ke form...")
                 time.sleep(2)
                 
                 code_inputs = page.locator("input[maxlength='1'], input[autocomplete='one-time-code']")

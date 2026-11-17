@@ -18,6 +18,8 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GH_PAT }}
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -45,12 +47,15 @@ jobs:
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
           TARGET_EMAIL: ${{ github.event.inputs.email }}
           PROMPT_ASK: ${{ github.event.inputs.prompt }}
+          PYTHONUNBUFFERED: "1"
         run: |
-          xvfb-run -a python login_challenge.py "${{ github.event.inputs.prompt }}"
+          xvfb-run -a python -u login_challenge.py "${{ github.event.inputs.prompt }}"
 
       - name: Commit Updated Session If Changed
+        env:
+          GH_TOKEN: ${{ secrets.GH_PAT }}
         run: |
           git config user.name "Ciro Session Bot"
           git config user.email "ciro@automated.local"
           git add session_qwen.json || true
-          git diff --quiet && git diff --staged --quiet || (git commit -m "Auto-persist session_qwen.json [skip ci]" && git push https://ciroxtreme:${{ secrets.GH_PAT }}@github.com/ciroxtreme/qwen-tantangan.git main)
+          git diff --quiet && git diff --staged --quiet || (git commit -m "Auto-persist session_qwen.json [skip ci]" && git push origin main)

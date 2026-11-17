@@ -144,29 +144,35 @@ def inspect_and_solve_baxia(page):
     print(f"📐 Target visual: {target_left:.1f}px -> RUMUS KUADRATIK MOUSE D: {mouse_distance:.1f}px")
     send_telegram_msg(f"🦊 [CAMOUFOX STEALTH] Gap={target_left:.1f}px -> D={mouse_distance:.1f}px")
 
-    # KUNCI ELEMEN SLIDER HANDLE (TOMBOL BIRU >>) SECARA PRESISI
-    slider_btn = page.locator(".nc_iconfont.btn_slide, div[class*='btn_slide'], div[class*='slider'] span, div[class*='slider'] div, div:has-text('>>')").first
+    # CARI TITIK KOORDINAT TOMBOL BIRU SECARA EVALUATE JS LANGSUNG (ANTI-TIMEOUT)
+    btn_coords = page.evaluate("""() => {
+        // Cari tombol >> atau elemen anak di dalam waf_nc_block
+        let el = document.querySelector('.btn_slide') || 
+                 document.querySelector("div[class*='btn']") ||
+                 document.querySelector("div[role='slider']") ||
+                 document.querySelector(".nc_iconfont");
+        if (el) {
+            let r = el.getBoundingClientRect();
+            return { x: r.left + r.width/2, y: r.top + r.height/2, found: true };
+        }
+        return { found: false };
+    }""")
     
-    # Scroll dan hover ke tombol
-    slider_btn.scroll_into_view_if_needed()
-    btn_box = slider_btn.bounding_box()
-    
-    if not btn_box:
-        # Fallback: ambil koordinat relatif puzzle
-        start_x = box["x"] + 25.0
-        start_y = box["y"] + box["height"] + 25.0
+    if btn_coords.get("found"):
+        start_x = btn_coords["x"]
+        start_y = btn_coords["y"]
+        print(f"🎯 Tombol slider ditemukan via JS DOM di ({start_x:.1f}, {start_y:.1f})!")
     else:
-        start_x = btn_box["x"] + btn_box["width"] / 2
-        start_y = btn_box["y"] + btn_box["height"] / 2
-        print(f"🎯 Tombol slider handle terdeteksi langsung di ({start_x:.1f}, {start_y:.1f})!")
+        # Posisi tombol Alibaba selalu 35px di bawah pojok kiri bawah gambar puzzle
+        start_x = box["x"] + 25.0
+        start_y = box["y"] + box["height"] + 35.0
+        print(f"📐 Fallback presisi koordinat tombol di ({start_x:.1f}, {start_y:.1f})!")
 
     print(f"⚡ MENGGESER BALOK: Start ({start_x:.1f}, {start_y:.1f}) -> Geser {mouse_distance:.1f}px...")
     
-    # Lakukan hover agar cursor state ter-trigger
+    # Hover dan klik
     page.mouse.move(start_x, start_y)
     time.sleep(0.3)
-    
-    # Tekan tombol mouse
     page.mouse.down()
     time.sleep(0.2)
     
@@ -177,15 +183,15 @@ def inspect_and_solve_baxia(page):
         
     time.sleep(0.4)
     page.mouse.up()
-    print("✅ Balok puzzle selesai digeser!")
+    print("✅ Balok puzzle selesai ditarik!")
     time.sleep(4)
     
     page.screenshot(path="screen_after_slide.png")
-    send_telegram_photo("screen_after_slide.png", "📸 [BUKTI GESER AKTIF] Kondisi layar setelah balok ditarik")
+    send_telegram_photo("screen_after_slide.png", "📸 [BUKTI GESER SELESAI] Hasil setelah balok ditarik")
     return True
 
 def main():
-    send_telegram_msg(f"🦊 [CAMOUFOX DIRECT DRAG] Meluncurkan Dragging Presisi!\nTarget: {TARGET_EMAIL}")
+    send_telegram_msg(f"🦊 [CAMOUFOX C++ STEALTH] Eksekusi Drag JS DOM Native!\nTarget: {TARGET_EMAIL}")
     
     with Camoufox(
         headless=False,
@@ -216,7 +222,6 @@ def main():
         page.screenshot(path="step2_typed.png")
         send_telegram_photo("step2_typed.png", "📸 [STEP 2] Email Selesai Diketik")
 
-        # Klik tombol Continue
         submit_btn = page.locator("button:has-text('Continue'), button:has-text('Lanjutkan'), button[type='submit']").first
         if submit_btn.is_visible():
             print("👉 Mengklik Continue...")
@@ -226,10 +231,9 @@ def main():
             page.keyboard.press("Enter")
             time.sleep(4)
 
-        # CEK & SOLVE BAXIA PUZZLE
         solved = inspect_and_solve_baxia(page)
         if solved:
-            send_telegram_msg("📬 Balok puzzle telah ditarik! Cek bukti geser di foto atas.")
+            send_telegram_msg("📬 Balok puzzle telah ditarik! Cek bukti geser di atas.")
         else:
             send_telegram_msg("⚠️ Status akhir halaman telah dikirimkan ke Telegram.")
 

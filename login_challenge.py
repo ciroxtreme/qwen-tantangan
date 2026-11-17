@@ -111,6 +111,42 @@ def find_gap_with_cv(bg_path: str) -> float:
         
     return 210.0
 
+def wait_for_telegram_otp(timeout_sec: int = 180) -> str:
+    send_telegram_msg(
+        "⏳ [INPUT KODE OTP DIMULAI!]\n\n"
+        "Balas chat bot Telegram ini SEKARANG dengan 6 digit kode OTP yang baru saja masuk ke Gmail Tuan Ciro!"
+    )
+    start_time = time.time()
+    last_update_id = 0
+    try:
+        init_url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/getUpdates?offset=-1"
+        with urllib.request.urlopen(init_url, timeout=10) as r:
+            data = json.loads(r.read().decode())
+            if data.get("result"):
+                last_update_id = data["result"][-1]["update_id"]
+    except Exception:
+        pass
+
+    while time.time() - start_time < timeout_sec:
+        time.sleep(3)
+        try:
+            url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/getUpdates?offset={last_update_id + 1}&timeout=5"
+            with urllib.request.urlopen(url, timeout=15) as r:
+                res = json.loads(r.read().decode())
+                for up in res.get("result", []):
+                    last_update_id = up["update_id"]
+                    msg = up.get("message", {})
+                    chat_id = str(msg.get("chat", {}).get("id"))
+                    text = msg.get("text", "").strip()
+                    if chat_id == str(TELEGRAM_CHAT_ID) and text:
+                        clean_code = "".join(filter(str.isalnum, text))
+                        if len(clean_code) in [4, 6, 8]:
+                            send_telegram_msg(f"🎯 Menerima kode OTP: {clean_code}! Memasukkan ke web...")
+                            return clean_code
+        except Exception:
+            pass
+    return ""
+
 def inspect_and_solve_baxia_multiround(page, max_rounds: int = 4):
     print(f"🔍 Memulai Multi-Round Solver Baxia (Maksimal {max_rounds} Ronde)...")
     
@@ -118,7 +154,6 @@ def inspect_and_solve_baxia_multiround(page, max_rounds: int = 4):
         time.sleep(3)
         captcha_img = page.locator("#aliyunCaptcha-img, img.puzzle").first
         
-        # Cek apakah popup sudah hilang / form berganti ke input kode verifikasi
         if captcha_img.count() == 0 or not captcha_img.is_visible():
             print(f"🎉 POPUP PUZZLE HILANG DI RONDE {r}! VERIFIKASI LOLOS!")
             page.screenshot(path="verified_screen.png")
@@ -142,11 +177,9 @@ def inspect_and_solve_baxia_multiround(page, max_rounds: int = 4):
         print(f"📐 Target visual: {target_left:.1f}px -> RUMUS KUADRATIK MOUSE D: {mouse_distance:.1f}px")
         send_telegram_msg(f"🦊 [RONDE {r}] Gap={target_left:.1f}px -> Geser={mouse_distance:.1f}px")
 
-        # Titik awal tombol handle (presisi 35px di bawah kiri gambar)
         start_x = box["x"] + 25.0
         start_y = box["y"] + box["height"] + 35.0
 
-        # Tarik balok dengan kurva kinetik
         page.mouse.move(start_x, start_y)
         time.sleep(0.2)
         page.mouse.down()
@@ -165,13 +198,12 @@ def inspect_and_solve_baxia_multiround(page, max_rounds: int = 4):
         page.screenshot(path=f"after_round_{r}.png")
         send_telegram_photo(f"after_round_{r}.png", f"📸 [HASIL RONDE {r}] Kondisi Layar Setelah Ditarik")
 
-    # Cek akhir
     time.sleep(2)
     captcha_final = page.locator("#aliyunCaptcha-img, img.puzzle").first
     return captcha_final.count() == 0 or not captcha_final.is_visible()
 
 def main():
-    send_telegram_msg(f"🦊 [MULTI-ROUND SOLVER] Menyerang Balok Puzzle Tanpa Ampun!\nTarget: {TARGET_EMAIL}")
+    send_telegram_msg(f"🦊 [QWEN-TANTANGAN] Final Battle: Solver + Standby OTP!\nTarget: {TARGET_EMAIL}")
     
     with Camoufox(
         headless=False,
@@ -209,13 +241,39 @@ def main():
         solved = inspect_and_solve_baxia_multiround(page, max_rounds=4)
         
         if solved:
-            send_telegram_msg(
-                "📬 [BAXIA RESMI DILUMPUHKAN!]\n\n"
-                "Semua ronde puzzle telah dilalui dan popup tertutup sempurna!\n"
-                "Kode OTP baru sedang meluncur ke Gmail Tuan Ciro. Silakan periksa inbox sekarang! 🎉"
-            )
+            send_telegram_msg("📬 BAXIA LOLOS! Menunggu Tuan Ciro mengirimkan kode OTP di Telegram...")
+            
+            # STANDBY MENERIMA OTP DARI TELEGRAM TUAN CIRO
+            otp = wait_for_telegram_otp(timeout_sec=180)
+            if otp:
+                print(f"👉 Memasukkan OTP {otp} ke form...")
+                time.sleep(2)
+                
+                # Cek input code
+                code_inputs = page.locator("input[maxlength='1'], input[autocomplete='one-time-code']")
+                if code_inputs.count() >= len(otp):
+                    for idx, ch in enumerate(otp):
+                        code_inputs.nth(idx).fill(ch)
+                        time.sleep(0.1)
+                else:
+                    otp_box = page.locator("input[placeholder*='code' i], input[placeholder*='kode' i], input[type='number'], input[type='tel'], input").first
+                    otp_box.fill(otp)
+
+                time.sleep(1)
+                page.keyboard.press("Enter")
+                time.sleep(6)
+                
+                page.screenshot(path="final_logged_in.png")
+                send_telegram_photo("final_logged_in.png", "🎉🎉 [SUKSES BESAR!!] STATUS BERHASIL LOGIN DI QWEN!!")
+                
+                # Ekspor cookies
+                cookies = context.cookies()
+                cookies_dict = {c['name']: c['value'] for c in cookies}
+                send_telegram_msg(f"🍪 [VICTORY!] Berhasil merebut {len(cookies_dict)} Session Cookies!")
+                with open("session_qwen.json", "w") as f:
+                    json.dump(cookies_dict, f, indent=2)
         else:
-            send_telegram_msg("⚠️ Ronde maksimal tercapai. Silakan periksa foto ronde terakhir di atas.")
+            send_telegram_msg("⚠️ Belum berhasil melewati ronde puzzle.")
 
         time.sleep(5)
 

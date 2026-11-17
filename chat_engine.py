@@ -126,24 +126,24 @@ def send_prompt_and_extract_answer(page, prompt: str, timeout_sec: int = 150) ->
     # Pindah model secara visual di dropdown UI ke Qwen 4 Max jika belum
     try:
         print("👉 Memilih model Qwen 4 Max di menu UI...")
-        # 1. Cari dropdown model di pojok kiri atas
-        model_btn = page.locator("button:has-text('Qwen3.7-Plus'), button:has-text('Plus'), [class*='model-select'], [aria-label*='Model']").first
-        if model_btn.is_visible(timeout=3000):
-            model_btn.click()
+        # 1. Klik langsung elemen trigger teks ant-dropdown
+        trigger = page.locator(".wms-trigger__text, .ant-dropdown-trigger, [class*='trigger__text']").first
+        if trigger.is_visible(timeout=4000):
+            trigger.click(force=True)
             time.sleep(1)
-            # 2. Klik opsi Qwen 4 Max
-            target_opt = page.locator("[role='option']:has-text('4 Max'), [role='option']:has-text('4-Max'), div:has-text('Qwen4-Max'), div:has-text('Qwen 4 Max'), span:has-text('4 Max')").first
+            # 2. Klik item menu Qwen 4 Max
+            target_opt = page.locator(".ant-dropdown-menu-item:has-text('4 Max'), [class*='menu-item']:has-text('4 Max'), div:has-text('Qwen4-Max'), div:has-text('Qwen 4 Max'), div:has-text('4-Max')").first
             if target_opt.is_visible(timeout=3000):
-                target_opt.click()
-                print("🎯 Sukses memilih model Qwen 4 Max di UI dropdown!")
+                target_opt.click(force=True)
+                print("🎯 Sukses memilih model Qwen 4 Max di ant-dropdown menu!")
             else:
-                # Coba via JS evaluator jika overlay berada di popover
+                # Fallback scan semua menu dropdown
                 page.evaluate("""() => {
-                    const allItems = document.querySelectorAll('[role="option"], [class*="menu-item"], [class*="select-item"], div, span');
-                    for (const el of allItems) {
-                        const t = (el.innerText || '').toLowerCase();
-                        if (t.includes('4 max') || t.includes('4-max') || t.includes('qwen 4') || t.includes('qwen4')) {
-                            el.click();
+                    const items = document.querySelectorAll('.ant-dropdown-menu-item, [role="menuitem"], div, span');
+                    for (const item of items) {
+                        const t = (item.innerText || '').toLowerCase();
+                        if (t.includes('4 max') || t.includes('4-max') || t.includes('qwen4-max') || t.includes('qwen 4 max')) {
+                            item.click();
                             break;
                         }
                     }

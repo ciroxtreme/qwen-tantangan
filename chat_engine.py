@@ -70,7 +70,7 @@ JS_EXTRACTOR = r'''() => {
             const md = lastItem.querySelector('.markdown-body, [class*="content"], div');
             if (md && md.innerText) {
                 let txt = md.innerText.trim();
-                return txt.replace(/^Berpikir selesai\s*/, '').trim();
+                return txt.replace(/^(Berpikir selesai|Thinking completed)\s*/i, '').trim();
             }
         }
         const allMd = document.querySelectorAll('.markdown-body');
@@ -80,7 +80,7 @@ JS_EXTRACTOR = r'''() => {
             if (!isUser) {
                 let txt = (el.innerText || '').trim();
                 if (txt && !txt.includes('How can I help') && !txt.includes('Ada yang bisa')) {
-                    return txt.replace(/^Berpikir selesai\s*/, '').trim();
+                    return txt.replace(/^(Berpikir selesai|Thinking completed)\s*/i, '').trim();
                 }
             }
         }

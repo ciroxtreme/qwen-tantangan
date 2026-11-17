@@ -115,8 +115,7 @@ def find_gap_with_cv(bg_path: str) -> float:
 def inspect_and_solve_baxia(page):
     print("🔍 Menginspeksi apakah Baxia Puzzle / #waf_nc_block muncul...")
     
-    # Tunggu dan cari puzzle hingga 15 detik
-    for _ in range(5):
+    for _ in range(6):
         time.sleep(2)
         captcha_img = page.locator("#aliyunCaptcha-img, img.puzzle").first
         if captcha_img.count() > 0 and captcha_img.is_visible():
@@ -125,7 +124,7 @@ def inspect_and_solve_baxia(page):
     captcha_img = page.locator("#aliyunCaptcha-img, img.puzzle").first
     if captcha_img.count() == 0 or not captcha_img.is_visible():
         page.screenshot(path="screen_no_puzzle.png")
-        send_telegram_photo("screen_no_puzzle.png", "📸 [BUKTI LAYAR] Status tepat setelah tombol submit ditekan")
+        send_telegram_photo("screen_no_puzzle.png", "📸 [BUKTI LAYAR] Status setelah tombol submit ditekan")
         print("ℹ️ Tidak ada elemen puzzle gambar yang aktif.")
         return False
 
@@ -227,36 +226,40 @@ def main():
             login_btn.click()
             time.sleep(4)
 
-        # Cari input email
-        email_input = page.locator("input[placeholder*='email' i], input[type='email'], input[placeholder*='surel' i]").first
-        if email_input.is_visible():
+        # Cari input email dengan aman
+        email_loc = page.locator("input[placeholder*='email' i], input[type='email'], input[placeholder*='surel' i]")
+        if email_loc.count() > 0 and email_loc.first.is_visible():
             print(f"👉 Mengisikan email target {TARGET_EMAIL}...")
+            email_input = email_loc.first
             email_input.click()
             time.sleep(0.5)
-            # Ketik per karakter seperti manusia
+            # Ketik satu per satu
             email_input.type(TARGET_EMAIL, delay=40)
             time.sleep(1)
+            
+            page.screenshot(path="camoufox_email_typed.png")
+            send_telegram_photo("camoufox_email_typed.png", "📸 [STEP 2] Email sudah terketik di form")
 
-        page.screenshot(path="camoufox_email_typed.png")
-        send_telegram_photo("camoufox_email_typed.png", "📸 [STEP 2] Email sudah terketik di form")
+            # Cari tombol Continue / Lanjutkan
+            submit_btn = page.locator("button:has-text('Continue'), button:has-text('Lanjutkan'), button[type='submit']").first
+            if submit_btn.is_visible():
+                print("👉 Mengklik tombol Continue...")
+                submit_btn.click()
+                time.sleep(4)
+            else:
+                page.keyboard.press("Enter")
+                time.sleep(4)
 
-        # Cari tombol Continue / Lanjutkan
-        submit_btn = page.locator("button:has-text('Continue'), button:has-text('Lanjutkan'), button[type='submit']").first
-        if submit_btn.is_visible():
-            print("👉 Mengklik tombol Continue...")
-            submit_btn.click()
-            time.sleep(3)
+            # CEK & GESER BAXIA PUZZLE
+            solved = inspect_and_solve_baxia(page)
+            if solved:
+                send_telegram_msg("📬 Balok puzzle telah digeser! Cek screenshot bukti geser di atas.")
+            else:
+                send_telegram_msg("⚠️ Puzzle tidak muncul atau form tidak berpindah. Cek screenshot bukti layar.")
         else:
-            email_input.press("Enter")
-            time.sleep(3)
-
-        # CEK & GESER BAXIA PUZZLE
-        solved = inspect_and_solve_baxia(page)
-        
-        if solved:
-            send_telegram_msg("📬 Balok puzzle telah digeser! Cek screenshot bukti geser di atas.")
-        else:
-            send_telegram_msg("⚠️ Puzzle tidak muncul atau form tidak berpindah. Cek screenshot bukti layar.")
+            print("⚠️ Input email tidak terlihat di layar modal!")
+            page.screenshot(path="no_email_input.png")
+            send_telegram_photo("no_email_input.png", "📸 [ERROR] Input email tidak ditemukan di modal")
 
         time.sleep(5)
 

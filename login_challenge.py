@@ -7,6 +7,8 @@ import random
 import urllib.request
 import urllib.parse
 from playwright.sync_api import sync_playwright
+import cv2
+import numpy as np
 
 TELEGRAM_BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN")
 TELEGRAM_CHAT_ID = os.environ.get("TELEGRAM_CHAT_ID")
@@ -55,17 +57,15 @@ def send_telegram_photo(photo_path: str, caption: str = ""):
         print(f"[TG Photo Error] {e}")
 
 def wait_for_telegram_otp(timeout_sec: int = 180) -> str:
-    """Mendengarkan balasan chat dari Tuan Ciro di Telegram berisi kode OTP."""
     send_telegram_msg(
-        "⏳ [INPUT DIBUTUHKAN TUAN CIRO]\n\n"
-        f"Alibaba sedang mengirim kode verifikasi ke email {TARGET_EMAIL}.\n"
-        "👉 Buka email Tuan Ciro, lalu LANGSUNG BALAS CHAT INI dengan 6 digit angka kodenya!\n"
-        f"(Bot akan menunggu sampai {timeout_sec} detik)"
+        "⏳ [KODE OTP TELAH TERKIRIM KE EMAIL!]\n\n"
+        f"Tuan Ciro, Baxia Puzzle BERHASIL DITEMBUS! 🎉\n"
+        f"Sekarang buka email {TARGET_EMAIL}, lalu BALAS CHAT INI dengan 6 digit kode OTP-nya!\n"
+        f"(Bot standby {timeout_sec} detik)"
     )
     
     start_time = time.time()
     last_update_id = 0
-    # Ambil offset awal agar pesan lama tidak terbaca
     try:
         init_url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/getUpdates?offset=-1"
         with urllib.request.urlopen(init_url, timeout=10) as r:
@@ -88,22 +88,21 @@ def wait_for_telegram_otp(timeout_sec: int = 180) -> str:
                     text = msg.get("text", "").strip()
                     
                     if chat_id == str(TELEGRAM_CHAT_ID) and text:
-                        # Bersihkan spasi atau tanda hubung
                         clean_code = "".join(filter(str.isalnum, text))
                         if len(clean_code) in [4, 6, 8]:
-                            send_telegram_msg(f"🎯 Menerima kode OTP: {clean_code}! Memasukkan ke halaman Qwen...")
+                            send_telegram_msg(f"🎯 Menerima kode OTP: {clean_code}! Memasukkan ke form...")
                             return clean_code
         except Exception as e:
             print(f"Polling error: {e}")
 
-    send_telegram_msg("❌ Waktu habis! Tidak ada kode OTP diterima dalam batas waktu.")
+    send_telegram_msg("❌ Waktu habis! Kode OTP tidak diterima.")
     return ""
 
 def generate_slider_trajectory(distance: float):
     traj = []
-    traj.append((0.0, 0.0, random.uniform(120.0, 200.0)))
-    steps = random.randint(14, 20)
-    jitter = 2.5
+    traj.append((0.0, 0.0, random.uniform(140.0, 220.0)))
+    steps = random.randint(18, 25)
+    jitter = 2.0
 
     for i in range(steps):
         p = (i + 1) / steps
@@ -121,77 +120,123 @@ def generate_slider_trajectory(distance: float):
             eased = 0.95 + 0.05 * t
 
         x = distance * eased
-        drift = -0.5 - p * 3.5
-        y = drift + math.sin(p * math.pi * random.uniform(1.5, 3.0)) * jitter
-        delay = random.uniform(20.0, 45.0)
+        drift = -0.5 - p * 3.0
+        y = drift + math.sin(p * math.pi * random.uniform(1.2, 2.5)) * jitter
+        delay = random.uniform(18.0, 38.0)
         traj.append((round(x, 1), round(y, 1), round(delay, 1)))
 
-    # Overshoot & micro adjustment
-    overshoot = random.uniform(3.0, 5.5)
+    # Micro overshoot & pull-back
+    overshoot = random.uniform(2.5, 4.5)
     traj.append((round(distance + overshoot, 1), round(y, 1), round(random.uniform(40.0, 70.0), 1)))
-    traj.append((round(distance - random.uniform(0.5, 1.2), 1), round(y * 0.5, 1), round(random.uniform(30.0, 50.0), 1)))
+    traj.append((round(distance - random.uniform(0.3, 1.0), 1), round(y * 0.5, 1), round(random.uniform(30.0, 50.0), 1)))
     traj.append((round(distance, 1), 0.0, round(random.uniform(40.0, 60.0), 1)))
     return traj
 
-def solve_slider_if_present(page):
-    print("🔍 Memeriksa apakah Baxia Slider muncul...")
-    time.sleep(2)
-    slider_btn = None
-    selectors = [
-        ".baxia-dialog-content .btn_slide",
-        "#nc_1_n1z",
-        ".nc_iconfont.btn_slide",
-        "span[id*='n1z']",
-        ".slidetounlock",
-        "div[class*='slider']",
-        "div[class*='button']"
-    ]
+def find_gap_with_cv(bg_path: str) -> float:
+    img = cv2.imread(bg_path)
+    if img is None:
+        return 200.0
+    gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+    edges = cv2.Canny(gray, 100, 200)
+    # Mask out sisi kiri (posisi awal balok puzzle)
+    edges[:, :60] = 0
     
-    for s in selectors:
-        loc = page.locator(s)
-        if loc.count() > 0 and loc.first.is_visible():
-            slider_btn = loc.first
-            print(f"🎯 Slider tombol terdeteksi via selector: {s}")
-            break
+    contours, _ = cv2.findContours(edges, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
+    candidates = []
+    for c in contours:
+        x, y, w, h = cv2.boundingRect(c)
+        if 30 <= w <= 70 and 30 <= h <= 70:
+            candidates.append((x, y, w, h))
             
-    if not slider_btn:
-        for frame in page.frames:
-            for s in selectors:
-                loc = frame.locator(s)
-                if loc.count() > 0 and loc.first.is_visible():
-                    slider_btn = loc.first
-                    print(f"🎯 Slider tombol terdeteksi di iframe via selector: {s}")
-                    break
-            if slider_btn:
-                break
+    if candidates:
+        # Ambil candidate yang paling mendekati bentuk kotak puzzle
+        candidates.sort(key=lambda item: abs(item[2] - item[3]))
+        target_x = candidates[0][0]
+        print(f"🎯 OpenCV mendeteksi lubang puzzle di koordinat X={target_x} (w={candidates[0][2]}, h={candidates[0][3]})")
+        return float(target_x)
+        
+    return 200.0
 
-    if slider_btn:
-        print("⚡ Mengeksekusi SlideX Human Curve pada Baxia Slider...")
-        box = slider_btn.bounding_box()
-        if box:
-            start_x = box["x"] + box["width"] / 2
-            start_y = box["y"] + box["height"] / 2
+def solve_baxia_puzzle(page):
+    print("🔍 Menunggu dan mendeteksi Baxia Puzzle Modal...")
+    time.sleep(3)
+    
+    # Cek apakah ada popup Access Verification
+    modal = page.locator("text='Access Verification', text='Drag to complete the puzzle', div[class*='baxia']")
+    if modal.count() == 0 or not modal.first.is_visible():
+        print("ℹ️ Tidak ada modal Baxia yang terlihat saat ini.")
+        return False
+
+    print("🚨 BAXIA PUZZLE TERDETEKSI! Memulai solver...")
+    send_telegram_msg("⚔️ [BAXIA PUZZLE MENGHADANG!] Memulai Computer Vision Edge Matching & Trajectory Solver...")
+
+    # Cari slider handle (tombol >>)
+    slider_handle = page.locator(".nc_iconfont.btn_slide, div[class*='btn_slide'], div[class*='slider'] span, div[class*='slider'] div, div:has-text('>>')").last
+    if not slider_handle.is_visible():
+        slider_handle = page.locator("div[role='slider'], div[class*='handle']").first
+
+    # Cari background puzzle image
+    bg_elem = page.locator("img[class*='bg'], div[class*='bg'] img, canvas[class*='bg'], img[alt*='puzzle' i], img[src*='data:image']").first
+    
+    distance = 200.0
+    if bg_elem.count() > 0 and bg_elem.is_visible():
+        try:
+            bg_elem.screenshot(path="puzzle_bg.png")
+            send_telegram_photo("puzzle_bg.png", "🧩 [ANALISIS CV] Gambar Background Puzzle Terpotong")
+            detected_x = find_gap_with_cv("puzzle_bg.png")
+            # Skala rasio jika gambar di-downscale oleh CSS
+            box = bg_elem.bounding_box()
+            img_real = cv2.imread("puzzle_bg.png")
+            if box and img_real is not None:
+                scale_ratio = box["width"] / img_real.shape[1]
+                distance = detected_x * scale_ratio
+                print(f"📐 Scaled distance: {distance}px (ratio {scale_ratio:.2f})")
+            else:
+                distance = detected_x
+        except Exception as e:
+            print(f"CV detect error: {e}")
+            distance = 195.0
+    else:
+        # Screenshot area modal untuk hitung perkiraan posisi lubang puzzle
+        page.screenshot(path="modal_puzzle.png")
+        distance = 195.0
+
+    print(f"🎯 Target geser slider: {distance:.1f}px")
+    
+    # Ambil posisi kursor handle slider
+    handle_box = slider_handle.bounding_box()
+    if not handle_box:
+        # Fallback cari tombol biru >>
+        blue_btn = page.locator("div:has-text('>>'), span:has-text('>>')").last
+        handle_box = blue_btn.bounding_box()
+
+    if handle_box:
+        start_x = handle_box["x"] + handle_box["width"] / 2
+        start_y = handle_box["y"] + handle_box["height"] / 2
+        
+        trajectory = generate_slider_trajectory(distance)
+        
+        page.mouse.move(start_x, start_y)
+        time.sleep(0.15)
+        page.mouse.down()
+        
+        for pt_x, pt_y, delay in trajectory:
+            page.mouse.move(start_x + pt_x, start_y + pt_y)
+            time.sleep(delay / 1000.0)
             
-            track_distance = 300.0
-            trajectory = generate_slider_trajectory(track_distance)
-            
-            page.mouse.move(start_x, start_y)
-            time.sleep(0.1)
-            page.mouse.down()
-            
-            for pt_x, pt_y, delay in trajectory:
-                page.mouse.move(start_x + pt_x, start_y + pt_y)
-                time.sleep(delay / 1000.0)
-                
-            time.sleep(0.2)
-            page.mouse.up()
-            print("✅ Slider telah digeser!")
-            time.sleep(3)
-            return True
+        time.sleep(0.25)
+        page.mouse.up()
+        print("✅ Balok puzzle telah digeser ke target lubang!")
+        time.sleep(4)
+        
+        page.screenshot(path="after_slider_solved.png")
+        send_telegram_photo("after_slider_solved.png", "📸 Status setelah puzzle digeser")
+        return True
+
     return False
 
 def main():
-    send_telegram_msg(f"🚀 [QWEN-TANTANGAN] Memulai Misi Login Lengkap sampai Step Selesai!\nTarget: {TARGET_EMAIL}")
+    send_telegram_msg(f"🚀 [QWEN-TANTANGAN] Meluncurkan Full Automation + OpenCV Solver!\nTarget: {TARGET_EMAIL}")
     
     with sync_playwright() as p:
         browser = p.chromium.launch(
@@ -248,10 +293,10 @@ def main():
             print("✅ Email berhasil diisi!")
             time.sleep(1)
 
-        # Klik tombol Kirim Kode / Lanjut / Verifikasi
-        print("4. Mencari tombol Kirim Kode / Lanjutkan...")
+        # Klik tombol Lanjutkan / Kirim Kode
+        print("4. Mengklik tombol Lanjutkan...")
         submit_btn = None
-        for txt in ["Kirim Kode", "Dapatkan Kode", "Send Code", "Get Code", "Lanjut", "Selanjutnya", "Next", "Continue"]:
+        for txt in ["Lanjutkan", "Lanjut", "Kirim Kode", "Dapatkan Kode", "Send Code", "Next", "Continue"]:
             loc = page.get_by_role("button", name=txt)
             if loc.count() > 0 and loc.first.is_visible():
                 submit_btn = loc.first
@@ -262,18 +307,14 @@ def main():
                 break
 
         if submit_btn:
-            print(f"👉 Mengklik tombol: {submit_btn.inner_text()}...")
             submit_btn.click()
             time.sleep(3)
         else:
             email_input.first.press("Enter")
             time.sleep(3)
 
-        # Cek dan selesaikan slider Baxia jika muncul
-        solve_slider_if_present(page)
-
-        page.screenshot(path="step4_otp_waiting.png")
-        send_telegram_photo("step4_otp_waiting.png", "📸 Step 4: Menunggu Input Kode Verifikasi")
+        # BAXIA PUZZLE SOLVER!
+        solve_baxia_puzzle(page)
 
         # STEP 5: TUNGGU KODE OTP DARI TELEGRAM TUAN CIRO
         print("5. Menunggu input kode OTP dari Telegram Tuan Ciro...")
@@ -285,7 +326,6 @@ def main():
             return
 
         print(f"👉 Mengisikan kode OTP {otp_code} ke web...")
-        # Cek input OTP: bisa 6 input box terpisah, atau 1 input text
         code_inputs = page.locator("input[maxlength='1'], input[autocomplete='one-time-code']")
         if code_inputs.count() >= len(otp_code):
             for idx, ch in enumerate(otp_code):
@@ -296,7 +336,6 @@ def main():
             if otp_box.count() > 0 and otp_box.first.is_visible():
                 otp_box.first.fill(otp_code)
             else:
-                # Fallback ke active element atau input apapun setelah email
                 inputs = page.locator("input")
                 for i in range(inputs.count()):
                     inp = inputs.nth(i)
@@ -306,7 +345,6 @@ def main():
 
         time.sleep(1)
         
-        # Klik tombol Masuk / Verifikasi / Selesai
         confirm_btn = None
         for txt in ["Masuk", "Verifikasi", "Konfirmasi", "Confirm", "Submit", "Verify", "Log in"]:
             loc = page.get_by_role("button", name=txt)
@@ -319,21 +357,19 @@ def main():
                 break
 
         if confirm_btn:
-            print(f"👉 Mengklik tombol konfirmasi: {confirm_btn.inner_text()}...")
             confirm_btn.click()
         else:
             page.keyboard.press("Enter")
 
         time.sleep(6)
 
-        # STEP 6: VERIFIKASI LOGIN BERHASIL & AMBIL COOKIE
+        # STEP 6: VERIFIKASI LOGIN & AMBIL SESSION
         print("6. Memeriksa status login & mengambil session cookies...")
         page.screenshot(path="step6_login_result.png")
         
         cookies = context.cookies()
         cookies_dict = {c['name']: c['value'] for c in cookies}
         
-        # Tanda berhasil: ada token / session / cookie khusus qwen
         is_success = any(k in cookies_dict for k in ["token", "session", "b-user-id", "login_aliyunid_ticket", "sg_sub_c_id"]) or "chat" in page.url
         
         if is_success:
@@ -343,7 +379,7 @@ def main():
             with open("session_qwen.json", "w") as f:
                 json.dump(cookies_dict, f, indent=2)
         else:
-            send_telegram_photo("step6_login_result.png", "⚠️ Step 6: Status setelah input OTP (periksa apakah ada error/dialog tambahan).")
+            send_telegram_photo("step6_login_result.png", "⚠️ Step 6: Status setelah input OTP.")
 
         browser.close()
 

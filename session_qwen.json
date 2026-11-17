@@ -1,0 +1,142 @@
+[
+  {
+    "name": "cbc",
+    "value": "T2gA69oabNw85MurHOsEbvhfCebnciorieP6K-S5uvSrE1zhYRRDvTvYw0DgtDFtZC4=",
+    "domain": ".alibaba.com",
+    "path": "/",
+    "expires": 1826479930.655,
+    "httpOnly": false,
+    "secure": false,
+    "sameSite": "None"
+  },
+  {
+    "name": "acw_tc",
+    "value": "ac12e65d17949439276087579e093a82952776869538280fd4eca904a47df2",
+    "domain": "chat.qwen.ai",
+    "path": "/",
+    "expires": 1794945727.833,
+    "httpOnly": true,
+    "secure": false,
+    "sameSite": "None"
+  },
+  {
+    "name": "x-ap",
+    "value": "na-vancouver-pop",
+    "domain": "chat.qwen.ai",
+    "path": "/",
+    "expires": -1,
+    "httpOnly": false,
+    "secure": false,
+    "sameSite": "Lax"
+  },
+  {
+    "name": "cna",
+    "value": "uJmDI7ijoy4CASh82fkXJFH6",
+    "domain": ".qwen.ai",
+    "path": "/",
+    "expires": 1829503929.017,
+    "httpOnly": false,
+    "secure": false,
+    "sameSite": "None"
+  },
+  {
+    "name": "acw_tc",
+    "value": "ac12e65d17949439293027651e093ad67ff31d37b7645d67e152e055fa4785",
+    "domain": "auth.qwen.ai",
+    "path": "/",
+    "expires": 1794945729.522,
+    "httpOnly": true,
+    "secure": false,
+    "sameSite": "None"
+  },
+  {
+    "name": "_c_WBKFRo",
+    "value": "hy5jqBJ9gDGcSFRCnse72Xmvwbcbh13SzcRafeFQ",
+    "domain": ".qwen.ai",
+    "path": "/",
+    "expires": 1826479936,
+    "httpOnly": false,
+    "secure": false,
+    "sameSite": "None"
+  },
+  {
+    "name": "_nb_ioWEgULi",
+    "value": "",
+    "domain": ".qwen.ai",
+    "path": "/",
+    "expires": -1,
+    "httpOnly": false,
+    "secure": false,
+    "sameSite": "None"
+  },
+  {
+    "name": "sca",
+    "value": "2cfd138c",
+    "domain": ".qwen.ai",
+    "path": "/",
+    "expires": -1,
+    "httpOnly": false,
+    "secure": false,
+    "sameSite": "None"
+  },
+  {
+    "name": "refresh_token",
+    "value": "eyJhbGciOiJIUzI1NiIsImtpZCI6ImxlZ2FjeSIsInR5cCI6IkpXVCJ9.eyJpZCI6ImQzZjg1YWM2LTE2NDMtNDdkYS05NGNhLWMzZmRlNzQ1MzVhOSIsImp0aSI6ImQ1Zjk1Y2RmLWMzY2MtNDY0OC04MDFkLTdjMjM0YTU2OWNmYSIsInR5cGUiOiJyZWZyZXNoX3Rva2VuIiwiZXhwIjoxNzk3NTM2MDQ0LCJpYXQiOjE3OTQ5NDQwNDR9.ccyptWbEvLfwT3l30bQwX0cf0hx_4KZXxTb6EXjnbSk",
+    "domain": ".qwen.ai",
+    "path": "/",
+    "expires": 1797536044.075,
+    "httpOnly": true,
+    "secure": true,
+    "sameSite": "Lax"
+  },
+  {
+    "name": "qwen-theme",
+    "value": "light",
+    "domain": "chat.qwen.ai",
+    "path": "/",
+    "expires": 1826480045.792,
+    "httpOnly": false,
+    "secure": false,
+    "sameSite": "None"
+  },
+  {
+    "name": "qwen-locale",
+    "value": "en-US",
+    "domain": "chat.qwen.ai",
+    "path": "/",
+    "expires": 1826480045.802,
+    "httpOnly": false,
+    "secure": false,
+    "sameSite": "None"
+  },
+  {
+    "name": "isg",
+    "value": "BDs7wSkx1b6V5OkKtpGRBc3AyRalkE-SYCUH9y34bjpRjF1urGLc4GzeoLTCt6eK",
+    "domain": ".qwen.ai",
+    "path": "/",
+    "expires": 1810496045,
+    "httpOnly": false,
+    "secure": true,
+    "sameSite": "None"
+  },
+  {
+    "name": "ssxmod_itna",
+    "value": "1-WqAx2DBDu7DQ=xeIO43d4QL4Kqr8DzxCHPG7DuxiK08D6DYqGd32X3EGKDyDmqhV54P/pMPAxDBu0DiaDBFdDax73ihF40Ix8cOigLzK3_AxbzN/bKogReYGjjhHYzOK6CcY945ztiD74GnC4GSDDNDD2ie04GX0_Di_eGmC4DSfDD9DDPDm4GWieDmDGYexBYDmd4DGqDn4CwTDGPexB6WrlmDxA6DuQ_WrfbQuemHzqOD5liPOl2Yqooq7Dxs8ixYxrvHi9=Neqdz0bhHKBPzn2XLj4eDGf19NDdiDxxiWAQur_xmfTQP0=jnG6GGzCjCnwsBK44h4CezQt406ucUgWNfgppA5z7tz7Gye_FYIie4zD_rKNLYD",
+    "domain": ".qwen.ai",
+    "path": "/",
+    "expires": 1794945850,
+    "httpOnly": false,
+    "secure": false,
+    "sameSite": "None"
+  },
+  {
+    "name": "ssxmod_itna2",
+    "value": "1-WqAx2DBDu7DQ=xeIO43d4QL4Kqr8DzxCHPG7DuxiK08D6DYqGd32X3EGKDyDmqhV54P/pMPYDix3mbigQlQ5uiKygq7wxi3YpkqxD",
+    "domain": ".qwen.ai",
+    "path": "/",
+    "expires": 1794945850,
+    "httpOnly": false,
+    "secure": false,
+    "sameSite": "None"
+  }
+]

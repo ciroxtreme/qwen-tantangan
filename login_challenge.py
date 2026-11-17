@@ -321,7 +321,7 @@ def main():
                     json.dump(cookies, f, indent=2)
                 try:
                     import subprocess
-                    subprocess.run(["gh", "secret", "set", "QWEN_SESSION_JSON", "--repo", "ciroxtreme/qwen-tantangan", "--body", json.dumps(cookies)], check=False)
+                    subprocess.run(["gh", "secret", "set", "QWEN_SESSION_JSON", "--repo", "ciroxtreme/qwtt", "--body", json.dumps(cookies)], check=False)
                 except Exception as e:
                     print(f"Notice sync secret: {e}")
 

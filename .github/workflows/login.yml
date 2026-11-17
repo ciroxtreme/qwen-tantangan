@@ -7,10 +7,6 @@ on:
         description: "Email target untuk login"
         required: true
         default: "tuanciroxtreme@gmail.com"
-      otp:
-        description: "Kode OTP dari email (opsional, jika sudah punya)"
-        required: false
-        default: ""
 
 jobs:
   run-challenge:
@@ -29,11 +25,11 @@ jobs:
           pip install playwright opencv-python-headless numpy
           playwright install --with-deps chromium
 
-      - name: Run Login Challenge
+      - name: Run Login Challenge with Residential Proxy
         env:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
           TARGET_EMAIL: ${{ github.event.inputs.email }}
-          PRESET_OTP: ${{ github.event.inputs.otp }}
+          WEBSHARE_ROTATING_PROXY: ${{ secrets.WEBSHARE_ROTATING_PROXY }}
         run: |
           python login_challenge.py

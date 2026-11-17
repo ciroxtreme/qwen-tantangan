@@ -13,6 +13,7 @@ import numpy as np
 TELEGRAM_BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN")
 TELEGRAM_CHAT_ID = os.environ.get("TELEGRAM_CHAT_ID")
 TARGET_EMAIL = os.environ.get("TARGET_EMAIL", "tuanciroxtreme@gmail.com")
+PROXY_URL = os.environ.get("WEBSHARE_ROTATING_PROXY")
 
 def send_telegram_msg(text: str):
     if not (TELEGRAM_BOT_TOKEN and TELEGRAM_CHAT_ID):
@@ -57,27 +58,17 @@ def send_telegram_photo(photo_path: str, caption: str = ""):
         print(f"[TG Photo Error] {e}")
 
 def solve_mouse_travel(target_left: float, A=0.0769, B=0.003552) -> float:
-    """
-    Rumus Kuadratik Aliyun Captcha (black-mouse-sha/aliyun-slider-solve)
-    piece.left = A*m + B*m^2
-    D = (-A + sqrt(A^2 + 4*B*target_left)) / (2*B)
-    """
     disc = A * A + 4 * B * target_left
     D = (-A + math.sqrt(disc)) / (2 * B)
-    # Bias sedikit 2-3px agar tidak pas robotik
-    return D + random.uniform(1.5, 3.0)
+    return D + random.uniform(1.0, 2.5)
 
 def generate_human_whip_trajectory(distance: float):
-    """
-    Model Human Whiplash (Puncak kecepatan 75% + Arm Drift)
-    """
     traj = []
     traj.append((0.0, 0.0, random.uniform(140.0, 200.0)))
-    steps = random.randint(22, 28)
+    steps = random.randint(24, 30)
 
     for i in range(steps):
         p = (i + 1) / steps
-        # S-Curve human acceleration (puncak di 70-80%)
         if p <= 0.30:
             eased = 0.10 * ((p / 0.30) ** 2)
         elif p <= 0.75:
@@ -88,14 +79,12 @@ def generate_human_whip_trajectory(distance: float):
             eased = 0.95 + 0.05 * ((p - 0.92) / 0.08)
 
         x = distance * eased
-        # Arm downward drift
         drift = -0.5 - p * 3.2
         y = drift + math.sin(p * math.pi * 2.0) * random.uniform(1.2, 2.2)
-        delay = random.uniform(15.0, 32.0)
+        delay = random.uniform(18.0, 34.0)
         traj.append((round(x, 1), round(y, 1), round(delay, 1)))
 
-    # Micro overshoot dan tahan sebentar
-    overshoot = random.uniform(2.0, 4.0)
+    overshoot = random.uniform(2.0, 3.5)
     traj.append((round(distance + overshoot, 1), round(y, 1), round(random.uniform(40.0, 60.0), 1)))
     traj.append((round(distance, 1), 0.0, round(random.uniform(40.0, 70.0), 1)))
     return traj
@@ -144,12 +133,11 @@ def inspect_and_solve_baxia(page):
         target_left = detected_x
         if box and img_real is not None:
             scale_ratio = box["width"] / img_real.shape[1]
-            target_left = (detected_x * scale_ratio) - 2.0 # ex0 offset
+            target_left = (detected_x * scale_ratio) - 2.0
             
-        # APLIKASIKAN RUMUS KUADRATIK ALIYUN!
         mouse_distance = solve_mouse_travel(target_left)
         print(f"📐 Target visual: {target_left:.1f}px -> RUMUS KUADRATIK MOUSE D: {mouse_distance:.1f}px")
-        send_telegram_msg(f"📐 [ALIYUN QUADRATIC] Gap={target_left:.1f}px -> D={mouse_distance:.1f}px (Persamaan Kuadrat Diterapkan!)")
+        send_telegram_msg(f"📐 [RESIDENTIAL PROXY + QUADRATIC] Gap={target_left:.1f}px -> D={mouse_distance:.1f}px")
 
         start_x = box["x"] + 25.0
         start_y = box["y"] + box["height"] + 25.0
@@ -157,14 +145,14 @@ def inspect_and_solve_baxia(page):
         traj = generate_human_whip_trajectory(mouse_distance)
         
         page.mouse.move(start_x, start_y)
-        time.sleep(0.15)
+        time.sleep(0.2)
         page.mouse.down()
         
         for pt_x, pt_y, delay in traj:
             page.mouse.move(start_x + pt_x, start_y + pt_y)
             time.sleep(delay / 1000.0)
             
-        time.sleep(0.3)
+        time.sleep(0.35)
         page.mouse.up()
         print("✅ Balok puzzle selesai digeser dengan rumus kuadratik!")
         time.sleep(4)
@@ -179,17 +167,31 @@ def inspect_and_solve_baxia(page):
     return False
 
 def main():
-    send_telegram_msg(f"🚀 [QWEN-TANTANGAN] Meluncurkan Aliyun Quadratic Model Solver!\nTarget: {TARGET_EMAIL}")
+    send_telegram_msg(f"🛡️ [OPSI 2 RESIDENTIAL PROXY] Meluncurkan Runner via Rotating Proxy!\nTarget: {TARGET_EMAIL}")
     
+    launch_args = [
+        "--no-sandbox",
+        "--disable-setuid-sandbox",
+        "--disable-dev-shm-usage",
+        "--disable-blink-features=AutomationControlled"
+    ]
+    
+    proxy_config = None
+    if PROXY_URL:
+        print(f"🌐 Menggunakan Rotating Proxy: {PROXY_URL}")
+        # Parse proxy URL
+        p = urllib.parse.urlparse(PROXY_URL)
+        proxy_config = {
+            "server": f"{p.scheme}://{p.hostname}:{p.port}",
+            "username": p.username,
+            "password": p.password
+        }
+
     with sync_playwright() as p:
         browser = p.chromium.launch(
             headless=True,
-            args=[
-                "--no-sandbox",
-                "--disable-setuid-sandbox",
-                "--disable-dev-shm-usage",
-                "--disable-blink-features=AutomationControlled"
-            ]
+            args=launch_args,
+            proxy=proxy_config
         )
         context = browser.new_context(
             user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36",
@@ -198,7 +200,6 @@ def main():
             timezone_id="Asia/Jakarta",
         )
         
-        # SUNTIKAN ANTI-DETECT LENGKAP DARI REPO ALIYUN SOLVE
         context.add_init_script("""
             Object.defineProperty(navigator, 'webdriver', {get: () => false, configurable: true});
             if (!window.chrome) window.chrome = {};
@@ -214,22 +215,16 @@ def main():
         
         page = context.new_page()
 
-        # Pantau status verify code T001 / F001 / F015
-        def handle_response(response):
-            if "-verify" in response.url or "captcha" in response.url:
-                try:
-                    text = response.text()
-                    if "T001" in text:
-                        print("🔥 RESPONSE DETECTED: T001 (PASS)!")
-                        send_telegram_msg("🎉 [BAXIA RESPONSE: T001] Status: VERIFIKASI LOLOS RESMI!")
-                    elif "F015" in text:
-                        print("⚠️ RESPONSE DETECTED: F015 (Position Error)")
-                    elif "F001" in text:
-                        print("⚠️ RESPONSE DETECTED: F001 (Risk Intercept)")
-                except Exception:
-                    pass
+        # Cek IP Aktif
+        try:
+            page.goto("https://api.ipify.org?format=json", timeout=15000)
+            ip_info = page.locator("body").inner_text()
+            print(f"📍 IP Aktif Browser: {ip_info}")
+            send_telegram_msg(f"📍 [IP EXIT ROTATING] Runner tersamarkan di IP: {ip_info}")
+        except Exception as e:
+            print(f"Proxy check warn: {e}")
 
-        page.on("response", handle_response)
+        page.on("response", lambda r: print(f"📡 [RESP] {r.status} {r.url}") if "-verify" in r.url or "captcha" in r.url else None)
 
         print("1. Membuka https://chat.qwen.ai/...")
         page.goto("https://chat.qwen.ai/", wait_until="networkidle", timeout=60000)
@@ -277,17 +272,17 @@ def main():
             email_input.first.press("Enter")
             time.sleep(3)
 
-        # SELESAIKAN DENGAN PERSAMAAN KUADRATIK ALIYUN
+        # SELESAIKAN BAXIA DENGAN RESIDENTIAL PROXY
         solved = inspect_and_solve_baxia(page)
         
         if solved:
             send_telegram_msg(
-                "📬 [BAXIA PUZZLE TERCETAK PASS!]\n\n"
-                "Kode verifikasi baru dikirimkan ke Gmail Tuan Ciro sekarang!\n"
+                "📬 [BAXIA BERHASIL DILEWATI VIA RESIDENTIAL PROXY!]\n\n"
+                "Kode OTP baru sudah mendarat di Gmail Tuan Ciro!\n"
                 "Silakan cek inbox Gmail."
             )
         else:
-            send_telegram_msg("⚠️ Cek status akhir attempt di foto Telegram.")
+            send_telegram_msg("⚠️ Status akhir attempt telah dikirimkan ke Telegram.")
 
         time.sleep(5)
         browser.close()

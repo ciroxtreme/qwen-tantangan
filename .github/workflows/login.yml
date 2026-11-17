@@ -1,4 +1,4 @@
-name: Qwen Login Challenge
+name: Qwen Login Challenge (Camoufox Stealth)
 
 on:
   workflow_dispatch:
@@ -22,14 +22,15 @@ jobs:
 
       - name: Install dependencies
         run: |
-          pip install playwright opencv-python-headless numpy
-          playwright install --with-deps chromium
+          sudo apt-get update && sudo apt-get install -y xvfb
+          pip install "camoufox[geoip]" opencv-python-headless numpy
+          camoufox fetch
 
-      - name: Run Login Challenge with Residential Proxy
+      - name: Run Login Challenge with Camoufox & Virtual Display
         env:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
           TARGET_EMAIL: ${{ github.event.inputs.email }}
           WEBSHARE_ROTATING_PROXY: ${{ secrets.WEBSHARE_ROTATING_PROXY }}
         run: |
-          python login_challenge.py
+          xvfb-run -a python login_challenge.py

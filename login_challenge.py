@@ -6,7 +6,7 @@ import math
 import random
 import urllib.request
 import urllib.parse
-from playwright.sync_api import sync_playwright
+from camoufox.sync_api import Camoufox
 import cv2
 import numpy as np
 
@@ -122,9 +122,9 @@ def inspect_and_solve_baxia(page):
             print("ℹ️ Gambar puzzle tidak terlihat, verifikasi berhasil atau tidak muncul.")
             return True
 
-        print(f"🚨 [PERCOBAAN {attempt}] BAXIA PUZZLE AKTIF! Menggunakan Aliyun Quadratic Model...")
+        print(f"🚨 [PERCOBAAN {attempt}] BAXIA PUZZLE AKTIF! Menggunakan Camoufox + Quadratic Model...")
         captcha_img.screenshot(path=f"puzzle_{attempt}.png")
-        send_telegram_photo(f"puzzle_{attempt}.png", f"🧩 [ATTEMPT {attempt}] Background Puzzle")
+        send_telegram_photo(f"puzzle_{attempt}.png", f"🧩 [CAMOUFOX ATTEMPT {attempt}] Background Puzzle")
         
         detected_x = find_gap_with_cv(f"puzzle_{attempt}.png")
         box = captcha_img.bounding_box()
@@ -137,7 +137,7 @@ def inspect_and_solve_baxia(page):
             
         mouse_distance = solve_mouse_travel(target_left)
         print(f"📐 Target visual: {target_left:.1f}px -> RUMUS KUADRATIK MOUSE D: {mouse_distance:.1f}px")
-        send_telegram_msg(f"📐 [RESIDENTIAL PROXY + QUADRATIC] Gap={target_left:.1f}px -> D={mouse_distance:.1f}px")
+        send_telegram_msg(f"🦊 [CAMOUFOX STEALTH] Gap={target_left:.1f}px -> D={mouse_distance:.1f}px")
 
         start_x = box["x"] + 25.0
         start_y = box["y"] + box["height"] + 25.0
@@ -154,11 +154,11 @@ def inspect_and_solve_baxia(page):
             
         time.sleep(0.35)
         page.mouse.up()
-        print("✅ Balok puzzle selesai digeser dengan rumus kuadratik!")
+        print("✅ Balok puzzle selesai digeser via Camoufox C++ Engine!")
         time.sleep(4)
         
         page.screenshot(path=f"after_{attempt}.png")
-        send_telegram_photo(f"after_{attempt}.png", f"📸 [HASIL ATTEMPT {attempt}] Evaluasi Posisi Balok")
+        send_telegram_photo(f"after_{attempt}.png", f"📸 [HASIL CAMOUFOX {attempt}] Evaluasi Posisi Balok")
         
         if not captcha_img.is_visible() or page.locator("input[placeholder*='kode' i], input[autocomplete='one-time-code']").count() > 0:
             print("🎉 BAXIA PUZZLE BERHASIL DITEMBUS (T001)!")
@@ -167,19 +167,10 @@ def inspect_and_solve_baxia(page):
     return False
 
 def main():
-    send_telegram_msg(f"🛡️ [OPSI 2 RESIDENTIAL PROXY] Meluncurkan Runner via Rotating Proxy!\nTarget: {TARGET_EMAIL}")
-    
-    launch_args = [
-        "--no-sandbox",
-        "--disable-setuid-sandbox",
-        "--disable-dev-shm-usage",
-        "--disable-blink-features=AutomationControlled"
-    ]
+    send_telegram_msg(f"🦊 [CAMOUFOX C++ STEALTH] Memulai Pertarungan Anti-Baxia di Virtual Display!\nTarget: {TARGET_EMAIL}")
     
     proxy_config = None
     if PROXY_URL:
-        print(f"🌐 Menggunakan Rotating Proxy: {PROXY_URL}")
-        # Parse proxy URL
         p = urllib.parse.urlparse(PROXY_URL)
         proxy_config = {
             "server": f"{p.scheme}://{p.hostname}:{p.port}",
@@ -187,44 +178,31 @@ def main():
             "password": p.password
         }
 
-    with sync_playwright() as p:
-        browser = p.chromium.launch(
-            headless=True,
-            args=launch_args,
-            proxy=proxy_config
-        )
-        context = browser.new_context(
-            user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36",
-            viewport={"width": 1280, "height": 800},
-            locale="id-ID",
-            timezone_id="Asia/Jakarta",
-        )
-        
-        context.add_init_script("""
-            Object.defineProperty(navigator, 'webdriver', {get: () => false, configurable: true});
-            if (!window.chrome) window.chrome = {};
-            if (!window.chrome.runtime) window.chrome.runtime = { connect: () => {}, sendMessage: () => {} };
-            const fp = [
-                { name: "PDF Viewer", filename: "internal-pdf-viewer", description: "Portable Document Format" },
-                { name: "Chrome PDF Viewer", filename: "internal-pdf-viewer", description: "Portable Document Format" },
-                { name: "Chromium PDF Viewer", filename: "internal-pdf-viewer", description: "Portable Document Format" },
-            ];
-            Object.defineProperty(navigator, 'plugins', { get: () => fp, configurable: true });
-            Object.defineProperty(navigator, 'languages', { get: () => ["id-ID", "id", "en-US", "en"], configurable: true });
-        """)
-        
-        page = context.new_page()
+    # Luncurkan Camoufox dalam mode Headful di Virtual Screen Xvfb
+    with Camoufox(
+        headless=False,
+        os="windows",
+        proxy=proxy_config,
+        window_size=(1280, 800)
+    ) as browser:
+        page = browser.new_page()
 
-        # Cek IP Aktif
-        try:
-            page.goto("https://api.ipify.org?format=json", timeout=15000)
-            ip_info = page.locator("body").inner_text()
-            print(f"📍 IP Aktif Browser: {ip_info}")
-            send_telegram_msg(f"📍 [IP EXIT ROTATING] Runner tersamarkan di IP: {ip_info}")
-        except Exception as e:
-            print(f"Proxy check warn: {e}")
+        # Monitor sinyal T001
+        def handle_response(response):
+            if "-verify" in response.url or "captcha" in response.url:
+                try:
+                    text = response.text()
+                    if "T001" in text:
+                        print("🔥 RESPONSE DETECTED: T001 (PASS)!")
+                        send_telegram_msg("🎉 [BAXIA T001 PASS!] CAMOUFOX BERHASIL MENEMBUS BAXIA ALIBABA!")
+                    elif "F015" in text:
+                        print("⚠️ RESPONSE: F015")
+                    elif "F001" in text:
+                        print("⚠️ RESPONSE: F001")
+                except Exception:
+                    pass
 
-        page.on("response", lambda r: print(f"📡 [RESP] {r.status} {r.url}") if "-verify" in r.url or "captcha" in r.url else None)
+        page.on("response", handle_response)
 
         print("1. Membuka https://chat.qwen.ai/...")
         page.goto("https://chat.qwen.ai/", wait_until="networkidle", timeout=60000)
@@ -272,20 +250,19 @@ def main():
             email_input.first.press("Enter")
             time.sleep(3)
 
-        # SELESAIKAN BAXIA DENGAN RESIDENTIAL PROXY
+        # SELESAIKAN BAXIA DENGAN CAMOUFOX
         solved = inspect_and_solve_baxia(page)
         
         if solved:
             send_telegram_msg(
-                "📬 [BAXIA BERHASIL DILEWATI VIA RESIDENTIAL PROXY!]\n\n"
-                "Kode OTP baru sudah mendarat di Gmail Tuan Ciro!\n"
-                "Silakan cek inbox Gmail."
+                "📬 [BAXIA BERHASIL DILEWATI!] 🎉\n\n"
+                "Camoufox C++ Engine berhasil melumpuhkan deteksi F001!\n"
+                "Kode OTP baru sedang meluncur ke Gmail Tuan Ciro. Cek inbox sekarang!"
             )
         else:
-            send_telegram_msg("⚠️ Status akhir attempt telah dikirimkan ke Telegram.")
+            send_telegram_msg("⚠️ Status evaluasi attempt Camoufox terkirim ke Telegram.")
 
         time.sleep(5)
-        browser.close()
 
 if __name__ == "__main__":
     main()

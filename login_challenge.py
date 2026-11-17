@@ -95,20 +95,33 @@ def find_gap_with_cv(bg_path: str) -> float:
     if img is None:
         return 210.0
     gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-    edges = cv2.Canny(gray, 100, 200)
-    edges[:, :60] = 0
+    
+    # Gunakan adaptive thresholding & histogram equalization untuk mengatasi foto terang/silau
+    clahe = cv2.createCLAHE(clipLimit=3.0, tileGridSize=(8, 8))
+    enhanced_gray = clahe.apply(gray)
+    
+    # Multi-threshold Canny edge detection
+    edges1 = cv2.Canny(enhanced_gray, 50, 150)
+    edges2 = cv2.Canny(gray, 100, 200)
+    edges = cv2.bitwise_or(edges1, edges2)
+    edges[:, :65] = 0  # Potong bagian slider piece kiri
     
     contours, _ = cv2.findContours(edges, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
     candidates = []
     for c in contours:
         x, y, w, h = cv2.boundingRect(c)
-        if 25 <= w <= 80 and 25 <= h <= 80:
-            candidates.append((x, y, w, h))
+        # Lubang puzzle Baxia standar memiliki rasio aspek persegi ~1:1 dengan ukuran 30-70px
+        if 25 <= w <= 85 and 25 <= h <= 85:
+            aspect = float(w) / h
+            if 0.7 <= aspect <= 1.4:
+                # Nilai skor berdasarkan kemiripan ke ukuran standar lubang (~45px)
+                score = abs(w - 45) + abs(h - 45) + abs(w - h) * 2
+                candidates.append((x, y, w, h, score))
             
     if candidates:
-        candidates.sort(key=lambda item: abs(item[2] - item[3]))
+        candidates.sort(key=lambda item: item[4])
         target_x = candidates[0][0]
-        print(f"🎯 OpenCV mendeteksi lubang puzzle di X={target_x} (w={candidates[0][2]}, h={candidates[0][3]})")
+        print(f"🎯 OpenCV Enhanced CLAHE mendeteksi lubang puzzle di X={target_x} (w={candidates[0][2]}, h={candidates[0][3]})")
         return float(target_x)
         
     return 210.0

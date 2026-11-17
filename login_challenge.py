@@ -178,16 +178,16 @@ def main():
             "password": p.password
         }
 
-    # Luncurkan Camoufox dalam mode Headful di Virtual Screen Xvfb
     with Camoufox(
         headless=False,
-        os="windows",
+        os="linux",
         proxy=proxy_config,
-        window_size=(1280, 800)
+        geoip=True,
+        i_know_what_im_doing=True
     ) as browser:
-        page = browser.new_page()
+        context = browser.new_context(viewport={"width": 1280, "height": 800})
+        page = context.new_page()
 
-        # Monitor sinyal T001
         def handle_response(response):
             if "-verify" in response.url or "captcha" in response.url:
                 try:

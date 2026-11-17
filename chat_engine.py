@@ -159,30 +159,51 @@ def send_prompt_and_extract_answer(page, prompt: str, timeout_sec: int = 150) ->
 
     # Pindah model secara visual di dropdown UI ke Qwen 4 Max jika belum
     try:
-        print("👉 Memilih model Qwen 4 Max di menu UI...")
-        # 1. Klik langsung elemen trigger teks ant-dropdown
-        trigger = page.locator(".wms-trigger__text, .ant-dropdown-trigger, [class*='trigger__text']").first
+        print("👉 Membuka dropdown model di pojok kiri atas...")
+        # Klik teks model di pojok kiri atas (Qwen3.7-Plus)
+        trigger = page.locator("div:has-text('Qwen3.7-Plus'), span:has-text('Qwen3.7-Plus'), .wms-trigger__text").last
         if trigger.is_visible(timeout=4000):
             trigger.click(force=True)
-            time.sleep(1)
-            # 2. Klik item menu Qwen 4 Max
-            target_opt = page.locator(".ant-dropdown-menu-item:has-text('4 Max'), [class*='menu-item']:has-text('4 Max'), div:has-text('Qwen4-Max'), div:has-text('Qwen 4 Max'), div:has-text('4-Max')").first
-            if target_opt.is_visible(timeout=3000):
-                target_opt.click(force=True)
-                print("🎯 Sukses memilih model Qwen 4 Max di ant-dropdown menu!")
-            else:
-                # Fallback scan semua menu dropdown
+            time.sleep(1.5)
+            # Ambil semua teks dari item menu yang muncul
+            menu_items = page.evaluate("""() => {
+                const els = document.querySelectorAll('.ant-dropdown-menu-item, [role="menuitem"], div[class*="item"], span[class*="item"]');
+                return Array.from(els).map(e => (e.innerText || '').trim()).filter(Boolean);
+            }""")
+            print(f"[DEBUG MODEL MENU] Opsi tersedia ({len(menu_items)} item): {menu_items}")
+            
+            # Cari dan klik opsi Qwen 4 Max
+            clicked = False
+            for selector in [
+                "text='Qwen4-Max'",
+                "text='Qwen 4 Max'",
+                "text='4 Max'",
+                "[role='menuitem']:has-text('Max')",
+                ".ant-dropdown-menu-item:has-text('Max')",
+                "div:has-text('Qwen4-Max')"
+            ]:
+                loc = page.locator(selector).first
+                if loc.is_visible(timeout=1000):
+                    loc.click(force=True)
+                    clicked = True
+                    print(f"🎯 Sukses mengklik model via selector: {selector}")
+                    break
+                    
+            if not clicked:
+                # Coba via JS evaluator
                 page.evaluate("""() => {
-                    const items = document.querySelectorAll('.ant-dropdown-menu-item, [role="menuitem"], div, span');
-                    for (const item of items) {
-                        const t = (item.innerText || '').toLowerCase();
-                        if (t.includes('4 max') || t.includes('4-max') || t.includes('qwen4-max') || t.includes('qwen 4 max')) {
-                            item.click();
+                    const all = document.querySelectorAll('*');
+                    for (const el of all) {
+                        const t = (el.innerText || '').trim();
+                        if (t === 'Qwen4-Max' || t === 'Qwen 4 Max' || t === '4 Max') {
+                            el.click();
                             break;
                         }
                     }
                 }""")
             time.sleep(1.5)
+        else:
+            print("Notice: Trigger Qwen3.7-Plus tidak terlihat.")
     except Exception as e:
         print(f"Notice UI model switch: {e}")
 

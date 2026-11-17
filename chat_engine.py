@@ -129,6 +129,35 @@ def send_prompt_and_extract_answer(page, prompt: str, timeout_sec: int = 150) ->
 
     page.route("**/api/v2/chat/completions*", handle_route)
 
+    # Pindah model secara visual di dropdown UI ke Qwen 4 Max jika belum
+    try:
+        print("👉 Memilih model Qwen 4 Max di menu UI...")
+        page.evaluate('''() => {
+            const buttons = document.querySelectorAll('button, [class*="model"], [class*="select"]');
+            for (const b of buttons) {
+                const txt = (b.innerText || '').toLowerCase();
+                if ((txt.includes('qwen') || txt.includes('3.7') || txt.includes('plus')) && !txt.includes('4 max') && !txt.includes('4-max')) {
+                    try {
+                        b.click();
+                        setTimeout(() => {
+                            const options = document.querySelectorAll('[role="option"], [class*="item"], [class*="menu-item"], div, span');
+                            for (const opt of options) {
+                                const optTxt = (opt.innerText || '').toLowerCase();
+                                if (optTxt.includes('qwen 4 max') || optTxt.includes('qwen4-max') || optTxt.includes('4 max') || optTxt.includes('max')) {
+                                    opt.click();
+                                    break;
+                                }
+                            }
+                        }, 500);
+                    } catch(e) {}
+                    break;
+                }
+            }
+        }''')
+        time.sleep(2)
+    except Exception as e:
+        print(f"Notice UI model switch: {e}")
+
     print("👉 Mengetik prompt ke input chat...")
     textarea = page.locator("textarea, [contenteditable='true']").first
     textarea.wait_for(state="visible", timeout=25000)

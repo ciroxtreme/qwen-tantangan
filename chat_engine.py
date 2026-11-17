@@ -99,17 +99,32 @@ def send_prompt_and_extract_answer(page, prompt: str, timeout_sec: int = 150) ->
     print("👉 Mengetik prompt ke input chat...")
     textarea = page.locator("textarea, [contenteditable='true']").first
     textarea.wait_for(state="visible", timeout=25000)
-    textarea.fill(prompt)
+    textarea.click()
     time.sleep(0.5)
+    textarea.fill(prompt)
+    time.sleep(1)
 
+    print("👉 Menekan tombol kirim / Enter...")
+    sent = False
     try:
         send_btn = page.locator("button[aria-label*='Kirim'], button[aria-label*='Send'], button[type='submit'], .send-button, .chat-input-send-button").last
-        if send_btn.is_visible(timeout=2000):
+        if send_btn.is_visible(timeout=3000):
             send_btn.click(force=True)
-        else:
-            page.keyboard.press("Enter")
-    except Exception:
-        page.keyboard.press("Enter")
+            sent = True
+            print("Tombol kirim tertekan!")
+    except Exception as e:
+        print(f"Notice send button: {e}")
+
+    if not sent:
+        textarea.press("Enter")
+        print("Enter keyboard ditekan!")
+
+    # Fallback DOM JS click jika textarea masih berisi teks
+    time.sleep(1.5)
+    page.evaluate("""() => {
+        const btn = document.querySelector('button[aria-label*="Kirim"], button[aria-label*="Send"], .send-button, .chat-input-send-button');
+        if (btn) btn.click();
+    }""")
 
     print("👉 Menunggu dan mengekstrak respon jawaban stream...")
     start_t = time.time()

@@ -1,6 +1,9 @@
 import time
 import json
 import re
+import os
+import urllib.request
+import urllib.parse
 
 JS_DISMISS_ALL_POPUPS = """() => {
     const cookieBtns = document.querySelectorAll('button');
@@ -95,6 +98,37 @@ JS_EXTRACTOR = r'''() => {
         return '';
     }
 }'''
+
+TELEGRAM_BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN", "")
+TELEGRAM_CHAT_ID = os.environ.get("TELEGRAM_CHAT_ID", "")
+
+def send_chat_screenshot(photo_path: str, caption: str = ""):
+    if not (TELEGRAM_BOT_TOKEN and TELEGRAM_CHAT_ID) or not os.path.exists(photo_path):
+        return
+    url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendPhoto"
+    boundary = "----WebKitFormBoundary7MA4YWxkTrZu0gW"
+    
+    with open(photo_path, "rb") as f:
+        photo_bytes = f.read()
+
+    body = (
+        f"--{boundary}\r\n"
+        f'Content-Disposition: form-data; name="chat_id"\r\n\r\n'
+        f"{TELEGRAM_CHAT_ID}\r\n"
+        f"--{boundary}\r\n"
+        f'Content-Disposition: form-data; name="caption"\r\n\r\n'
+        f"{caption}\r\n"
+        f"--{boundary}\r\n"
+        f'Content-Disposition: form-data; name="photo"; filename="shot.png"\r\n'
+        f"Content-Type: image/png\r\n\r\n"
+    ).encode("utf-8") + photo_bytes + f"\r\n--{boundary}--\r\n".encode("utf-8")
+
+    req = urllib.request.Request(url, data=body, headers={"Content-Type": f"multipart/form-data; boundary={boundary}"})
+    try:
+        urllib.request.urlopen(req, timeout=15)
+        print("📸 Screenshot jawaban terkirim ke Telegram!")
+    except Exception as e:
+        print(f"[TG Photo Error] {e}")
 
 def send_prompt_and_extract_answer(page, prompt: str, timeout_sec: int = 150) -> str:
     print(f"👉 Menyiapkan pengiriman pertanyaan ke Qwen: '{prompt}'...")
@@ -217,6 +251,15 @@ def send_prompt_and_extract_answer(page, prompt: str, timeout_sec: int = 150) ->
                 stable_count = 0
 
         prev_len = current_len
+
+    time.sleep(1)
+    # Ambil screenshot jawaban lengkap beserta header model yang aktif di pojok kiri atas
+    screenshot_file = "qwen_answer_screenshot.png"
+    try:
+        page.screenshot(path=screenshot_file)
+        send_chat_screenshot(screenshot_file, "📸 [BUKTI LAYAR JAWABAN] Qwen 4 Max Engine Aktif")
+    except Exception as e:
+        print(f"Notice screenshot capture: {e}")
 
     answer = page.evaluate(JS_EXTRACTOR)
     if not answer or len(answer) < 5:

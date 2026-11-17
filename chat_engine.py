@@ -160,8 +160,8 @@ def send_prompt_and_extract_answer(page, prompt: str, timeout_sec: int = 150) ->
     # Pindah model secara visual di dropdown UI ke Qwen 4 Max jika belum
     try:
         print("👉 Membuka dropdown model di pojok kiri atas...")
-        # Klik teks model di pojok kiri atas (Qwen3.7-Plus)
-        trigger = page.locator("div:has-text('Qwen3.7-Plus'), span:has-text('Qwen3.7-Plus'), .wms-trigger__text").last
+        # Klik elemen trigger model yang berada di area header (bukan di sidebar history chat)
+        trigger = page.locator("header [class*='trigger'], header .wms-trigger__text, main [class*='model-select'], [class*='header'] [class*='trigger'], .wms-trigger__text").first
         if trigger.is_visible(timeout=4000):
             trigger.click(force=True)
             time.sleep(1.5)

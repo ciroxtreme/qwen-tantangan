@@ -1,6 +1,9 @@
 name: Qwen Login Challenge & Relay (Camoufox Stealth)
 
 on:
+  schedule:
+    # Auto Keep-Alive: Ping Qwen tiap 6 jam sekali agar cookie selalu segar & tidak basi
+    - cron: '0 */6 * * *'
   workflow_dispatch:
     inputs:
       email:
@@ -45,11 +48,11 @@ jobs:
         env:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
-          TARGET_EMAIL: ${{ github.event.inputs.email }}
-          PROMPT_ASK: ${{ github.event.inputs.prompt }}
+          TARGET_EMAIL: ${{ github.event.inputs.email || 'tuanciroxtreme@gmail.com' }}
+          PROMPT_ASK: ${{ github.event.inputs.prompt || '' }}
           PYTHONUNBUFFERED: "1"
         run: |
-          xvfb-run -a python -u login_challenge.py "${{ github.event.inputs.prompt }}"
+          xvfb-run -a python -u login_challenge.py "${{ github.event.inputs.prompt || '' }}"
 
       - name: Commit Updated Session If Changed
         env:

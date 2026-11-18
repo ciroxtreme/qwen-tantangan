@@ -249,9 +249,13 @@ def main():
         if os.path.exists("session_qwen.json"):
             print("🚀 Memeriksa status login langsung di chat.qwen.ai...")
             page.goto("https://chat.qwen.ai/", wait_until="domcontentloaded", timeout=45000)
-            time.sleep(3)
+            time.sleep(4)
             body_txt = page.evaluate("() => document.body.innerText")
-            if not (("Masuk" in body_txt and "Daftar" in body_txt) or "Login" in body_txt):
+            
+            # Validasi ketat: User benar-benar login JIKA ADA profil/avatar/chat input DAN TIDAK ada tombol Log in/Sign up
+            is_logged_out = any(k in body_txt for k in ["Log in", "Sign up", "Masuk", "Daftar", "Confirm your age to continue"])
+            
+            if not is_logged_out:
                 print("🎉 [AUTO-LOGIN PERSISTEN] Sesi aktif! Langsung mengeksekusi chat!")
                 if PROMPT_ASK:
                     answer = send_prompt_and_extract_answer(page, PROMPT_ASK)
@@ -261,6 +265,9 @@ def main():
                     if answer:
                         send_telegram_msg(f"✨ [JAWABAN QWEN 4 MAX]:\n\n{answer}")
                 return
+            else:
+                print("⚠️ [SESI KEDALUWARSA / LOGOUT] Terdeteksi tombol Log in atau Age Gate! Mengaktifkan flow re-login & kirim notifikasi ke Telegram...")
+                send_telegram_msg("⚠️ [QWEN ALERT] Sesi cookie Qwen telah kedaluwarsa atau ter-logout. Memulai prosedur re-login interaktif via email...")
 
         send_telegram_msg("🌐 [TAHAP 2/5] Membuka halaman login Qwen & mengisi email..."); print("1. Meluncur langsung ke URL Auth Qwen...")
         page.goto("https://chat.qwen.ai/auth?mode=signin", wait_until="load", timeout=60000)

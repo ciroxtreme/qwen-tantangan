@@ -252,8 +252,21 @@ def main():
             time.sleep(4)
             body_txt = page.evaluate("() => document.body.innerText")
             
-            # Validasi ketat: User benar-benar login JIKA ADA profil/avatar/chat input DAN TIDAK ada tombol Log in/Sign up
-            is_logged_out = any(k in body_txt for k in ["Log in", "Sign up", "Masuk", "Daftar", "Confirm your age to continue"])
+            # Tunggu dan validasi deterministik: periksa apakah form chat input aktif ATAU elemen user avatar muncul
+            is_logged_out = False
+            try:
+                # Tunggu hingga 12 detik apakah textarea chat atau avatar profil muncul
+                page.wait_for_selector('textarea, [contenteditable="true"], [class*="avatar"], [class*="user"]', timeout=12000)
+                body_txt = page.evaluate("() => document.body.innerText")
+                # Jika ada teks Log in tapi ADA textarea chat dan history sidebar, jangan anggap logout!
+                has_chat_input = page.locator('textarea, [contenteditable="true"]').first.is_visible()
+                if has_chat_input:
+                    is_logged_out = False
+                else:
+                    is_logged_out = any(k in body_txt for k in ["Log in", "Sign up", "Masuk", "Daftar", "Confirm your age to continue"])
+            except Exception:
+                body_txt = page.evaluate("() => document.body.innerText")
+                is_logged_out = any(k in body_txt for k in ["Log in", "Sign up", "Masuk", "Daftar", "Confirm your age to continue"])
             
             if not is_logged_out:
                 print("🎉 [AUTO-LOGIN PERSISTEN] Sesi aktif! Memperbarui cookie terbaru (Keep-Alive)...")
@@ -298,59 +311,105 @@ def main():
         if submit_btn.is_visible():
             print("👉 Mengklik Continue...")
             submit_btn.click()
-            time.sleep(4)
         else:
-            page.keyboard.press("Enter")
-            time.sleep(4)
+            print("👉 Menekan Enter pada input email...")
+            email_loc.press("Enter")
+        time.sleep(5)
 
-        # EKSEKUSI MULTI-ROUND SOLVER
-        solved = inspect_and_solve_baxia_multiround(page, max_rounds=4)
-        
-        if solved:
-            send_telegram_msg("🧩 [TAHAP 3/5] Puzzle Baxia sukses ditembus! Form OTP terbuka.\nMenunggu balasan kode OTP Tuan Ciro di chat ini...")
-            
+        # Ambil screenshot kondisi form setelah submit email
+        page.screenshot(path="after_email_submit.png")
+        send_telegram_photo("after_email_submit.png", "📸 [BUKTI SUBMIT EMAIL] Status halaman setelah memasukkan email")
+
+        # Cek apakah captcha muncul atau langsung form OTP
+        captcha_img = page.locator("#aliyunCaptcha-img, img.puzzle").first
+        if captcha_img.is_visible():
+            print("🧩 Captcha Baxia muncul, menjalankan solver...")
+            solved = inspect_and_solve_baxia_multiround(page, max_rounds=4)
+        else:
+            print("Notice: Tidak ada captcha yang muncul.")
+            solved = True
+
+        # Validasi ketat: Form OTP benar-benar harus terlihat sebelum minta OTP ke user
+        time.sleep(3)
+        page.screenshot(path="auth_current_view.png")
+        otp_visible = False
+        try:
+            otp_locator = page.locator("input[maxlength='1'], input[autocomplete='one-time-code'], input[placeholder*='code' i], input[placeholder*='kode' i]")
+            if otp_locator.first.is_visible(timeout=5000):
+                otp_visible = True
+        except Exception:
+            pass
+
+        if not otp_visible:
+            # Kirim screenshot jika form OTP belum terbuka agar jelas statusnya
+            send_telegram_photo("auth_current_view.png", "⚠️ [PERHATIAN] Form OTP belum terbuka di Qwen. Memeriksa status tombol...")
+            # Coba klik submit sekali lagi via JS jika tombol Continue belum terpicu
+            page.evaluate('''() => {
+                const btns = document.querySelectorAll("button");
+                for (const b of btns) {
+                    const txt = (b.innerText || "").toLowerCase();
+                    if (txt.includes("continue") || txt.includes("lanjutkan") || txt.includes("next")) {
+                        b.click();
+                        break;
+                    }
+                }
+            }''')
+            time.sleep(5)
+            page.screenshot(path="auth_current_view.png")
+            try:
+                if page.locator("input[maxlength='1'], input[autocomplete='one-time-code']").first.is_visible(timeout=5000):
+                    otp_visible = True
+            except Exception:
+                pass
+
+        if solved and otp_visible:
+            send_telegram_photo("auth_current_view.png", "🧩 [TAHAP 3/5] Form OTP resmi terbuka & email kode terkirim!")
             # STANDBY MENERIMA OTP DARI TELEGRAM TUAN CIRO
             otp = wait_for_telegram_otp(timeout_sec=180)
-            if otp:
-                send_telegram_msg(f"⌨️ [TAHAP 4/5] Memasukkan OTP {otp} dan submit verifikasi..."); print(f"👉 Memasukkan OTP {otp} ke form...")
-                time.sleep(2)
-                
-                code_inputs = page.locator("input[maxlength='1'], input[autocomplete='one-time-code']")
-                if code_inputs.count() >= len(otp):
-                    for idx, ch in enumerate(otp):
-                        code_inputs.nth(idx).fill(ch)
-                        time.sleep(0.1)
-                else:
-                    otp_box = page.locator("input[placeholder*='code' i], input[placeholder*='kode' i], input[type='number'], input[type='tel'], input").first
-                    otp_box.fill(otp)
+        else:
+            send_telegram_photo("auth_current_view.png", "❌ [GAGAL] Form OTP belum berhasil terpicu dari Qwen. Screenshot terlampir di atas.")
+            otp = ""
 
-                time.sleep(1)
-                page.keyboard.press("Enter")
-                time.sleep(6)
-                
-                page.screenshot(path="final_logged_in.png")
-                send_telegram_photo("final_logged_in.png", "🎉🎉 [SUKSES BESAR!!] STATUS BERHASIL LOGIN DI QWEN!!")
-                
-                # Ekspor cookies lengkap persisten
-                cookies = context.cookies()
-                send_telegram_msg(f"🍪 [VICTORY!] Berhasil merebut {len(cookies)} Session Cookies lengkap!")
-                with open("session_qwen.json", "w") as f:
-                    json.dump(cookies, f, indent=2)
-                try:
-                    import subprocess
-                    subprocess.run(["gh", "secret", "set", "QWEN_SESSION_JSON", "--repo", "ciroxtreme/qwtt", "--body", json.dumps(cookies)], check=False)
-                except Exception as e:
-                    print(f"Notice sync secret: {e}")
+        if otp:
+            send_telegram_msg(f"⌨️ [TAHAP 4/5] Memasukkan OTP {otp} dan submit verifikasi..."); print(f"👉 Memasukkan OTP {otp} ke form...")
+            time.sleep(2)
+            
+            code_inputs = page.locator("input[maxlength='1'], input[autocomplete='one-time-code']")
+            if code_inputs.count() >= len(otp):
+                for idx, ch in enumerate(otp):
+                    code_inputs.nth(idx).fill(ch)
+                    time.sleep(0.1)
+            else:
+                otp_box = page.locator("input[placeholder*='code' i], input[placeholder*='kode' i], input[type='number'], input[type='tel'], input").first
+                otp_box.fill(otp)
 
-                # Eksekusi prompt pertanyaan langsung
-                if PROMPT_ASK:
-                    send_telegram_msg(f"🧠 [QWEN RELAY] Mengirimkan pertanyaan ke Qwen 4 Max...")
-                    answer = send_prompt_and_extract_answer(page, PROMPT_ASK)
-                    print("\n" + "="*40 + " QWEN FINAL ANSWER " + "="*40 + "\n")
-                    print(answer)
-                    print("\n" + "="*95 + "\n")
-                    if answer:
-                        send_telegram_msg(f"✨ [JAWABAN QWEN 4 MAX]:\n\n{answer}")
+            time.sleep(1)
+            page.keyboard.press("Enter")
+            time.sleep(6)
+            
+            page.screenshot(path="final_logged_in.png")
+            send_telegram_photo("final_logged_in.png", "🎉🎉 [SUKSES BESAR!!] STATUS BERHASIL LOGIN DI QWEN!!")
+            
+            # Ekspor cookies lengkap persisten
+            cookies = context.cookies()
+            send_telegram_msg(f"🍪 [VICTORY!] Berhasil merebut {len(cookies)} Session Cookies lengkap!")
+            with open("session_qwen.json", "w") as f:
+                json.dump(cookies, f, indent=2)
+            try:
+                import subprocess
+                subprocess.run(["gh", "secret", "set", "QWEN_SESSION_JSON", "--repo", "ciroxtreme/qwtt", "--body", json.dumps(cookies)], check=False)
+            except Exception as e:
+                print(f"Notice sync secret: {e}")
+
+            # Eksekusi prompt pertanyaan langsung
+            if PROMPT_ASK:
+                send_telegram_msg(f"🧠 [QWEN RELAY] Mengirimkan pertanyaan ke Qwen 4 Max...")
+                answer = send_prompt_and_extract_answer(page, PROMPT_ASK)
+                print("\n" + "="*40 + " QWEN FINAL ANSWER " + "="*40 + "\n")
+                print(answer)
+                print("\n" + "="*95 + "\n")
+                if answer:
+                    send_telegram_msg(f"✨ [JAWABAN QWEN 4 MAX]:\n\n{answer}")
         else:
             send_telegram_msg("⚠️ Belum berhasil melewati ronde puzzle.")
 

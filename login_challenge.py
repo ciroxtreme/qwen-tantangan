@@ -256,7 +256,17 @@ def main():
             is_logged_out = any(k in body_txt for k in ["Log in", "Sign up", "Masuk", "Daftar", "Confirm your age to continue"])
             
             if not is_logged_out:
-                print("🎉 [AUTO-LOGIN PERSISTEN] Sesi aktif! Langsung mengeksekusi chat!")
+                print("🎉 [AUTO-LOGIN PERSISTEN] Sesi aktif! Memperbarui cookie terbaru (Keep-Alive)...")
+                
+                # Ekspor & segarkan cookie terbaru hasil keep-alive ke disk agar selalu diperpanjang
+                try:
+                    updated_cookies = context.cookies()
+                    with open("session_qwen.json", "w") as f:
+                        json.dump(updated_cookies, f, indent=2)
+                    print(f"🔄 [KEEP-ALIVE] Berhasil memperpanjang & menyimpan {len(updated_cookies)} cookie terbaru!")
+                except Exception as e:
+                    print(f"Warning saving keep-alive cookies: {e}")
+
                 if PROMPT_ASK:
                     answer = send_prompt_and_extract_answer(page, PROMPT_ASK)
                     print("\n" + "="*40 + " QWEN FINAL ANSWER " + "="*40 + "\n")

@@ -20,48 +20,39 @@ JS_DISMISS_ALL_POPUPS = """() => {
 }"""
 
 JS_CHECK_STREAM_DONE = """() => {
-    let hasStop = false;
-    const buttons = document.querySelectorAll('button');
+    let isGenerating = false;
+    const buttons = document.querySelectorAll('button, div[role="button"]');
     for (const b of buttons) {
         const txt = (b.innerText || '').toLowerCase();
         const aria = (b.getAttribute('aria-label') || '').toLowerCase();
-        if (txt.includes('stop') || aria.includes('stop') || aria.includes('berhenti')) {
-            hasStop = true;
+        const cls = (b.className || '').toLowerCase();
+        if (txt.includes('stop') || aria.includes('stop') || aria.includes('berhenti') || cls.includes('stop') || cls.includes('generating')) {
+            isGenerating = true;
             break;
         }
     }
-    // Cari elemen respon assistant
-    const targets = document.querySelectorAll('.chat-message-list .markdown-body, [class*="assistant"] .markdown-body, .markdown-body, [class*="message-content"], [class*="chat-item"]');
-    let answerLen = 0;
-    let snippet = "";
+    // Cek juga apakah ada cursor blinking stream atau loading indicator
+    const streamIndicators = document.querySelectorAll('.streaming, [class*="cursor"], [class*="loading-dot"], .ant-spin');
+    if (streamIndicators.length > 0) {
+        isGenerating = true;
+    }
 
+    // Hitung panjang respon assistant
+    const targets = document.querySelectorAll('.markdown-body, [class*="message-content"], [class*="assistant"]');
+    let answerLen = 0;
     if (targets.length > 0) {
         for (let i = targets.length - 1; i >= 0; i--) {
-            const t = targets[i].innerText ? targets[i].innerText.trim() : "";
-            if (t && !t.includes("Ada yang bisa saya bantu?") && !t.includes("How can I help you?") && !t.includes("Umpan balik ini")) {
+            const t = (targets[i].innerText || '').trim();
+            if (t && !t.includes("Ada yang bisa saya bantu?") && !t.includes("How can I help you?")) {
                 answerLen = t.length;
-                snippet = t.substring(0, 80);
                 break;
             }
         }
     }
-    
-    // Fallback deteksi teks di body selain header/sidebar
-    if (answerLen === 0) {
-        const bodyTxt = document.body.innerText || "";
-        const parts = bodyTxt.split(/Tes live tahap|Halo Qwen|Jelaskan secara/i);
-        if (parts.length > 1) {
-            const afterPrompt = parts[parts.length - 1].trim();
-            answerLen = afterPrompt.length;
-            snippet = afterPrompt.substring(0, 80);
-        }
-    }
 
     return {
-        hasStop: hasStop,
-        answerLen: answerLen,
-        snippet: snippet,
-        isThinkingOnly: false
+        isGenerating: isGenerating,
+        answerLen: answerLen
     };
 }"""
 
@@ -259,15 +250,17 @@ def send_prompt_and_extract_answer(page, prompt: str, timeout_sec: int = 150) ->
         if current_len > 0 and current_len != prev_len:
             print(f"[{elapsed}s] Streaming ({current_len} karakter)...")
 
-        if current_len > 0 and not is_thinking:
+        is_gen = status.get("isGenerating", False)
+        if current_len > 0:
             if current_len == prev_len:
                 stable_count += 1
-                if not has_stop and stable_count >= 2:
-                    print(f"[{elapsed}s] 🚀 Respon selesai lengkap!")
+                # Jangan pernah stop jika tombol stop/generating masih aktif!
+                # Harus stabil minimal 4 tick (8 detik) dan tombol stop sudah hilang
+                if not is_gen and stable_count >= 4 and elapsed >= 10:
+                    print(f"[{elapsed}s] 🚀 Respon selesai lengkap dan tuntas!")
                     break
-                if stable_count >= 5:
-                    print(f"[{elapsed}s] 🛡️ Respon stabil.")
-                    break
+                elif is_gen:
+                    stable_count = 0  # reset debounce jika masih generating
             else:
                 stable_count = 0
 

@@ -10,21 +10,11 @@
     "sameSite": "Lax"
   },
   {
-    "name": "acw_tc",
-    "value": "ac12e15717950763808105660e09c5bcc78d683032bde10f1706f04bd7c67a",
-    "domain": "chat.qwen.ai",
-    "path": "/",
-    "expires": 1795078181.043371,
-    "httpOnly": true,
-    "secure": false,
-    "sameSite": "Lax"
-  },
-  {
     "name": "qwen-theme",
     "value": "light",
     "domain": "chat.qwen.ai",
     "path": "/",
-    "expires": 1826612618.176469,
+    "expires": 1826637113.233963,
     "httpOnly": false,
     "secure": false,
     "sameSite": "Lax"
@@ -34,7 +24,7 @@
     "value": "en-US",
     "domain": "chat.qwen.ai",
     "path": "/",
-    "expires": 1826612618.192757,
+    "expires": 1826637113.247533,
     "httpOnly": false,
     "secure": false,
     "sameSite": "Lax"
@@ -54,30 +44,10 @@
     "value": "Hp+FI6LUTQoCAWgcyGmp5hPE",
     "domain": ".qwen.ai",
     "path": "/",
-    "expires": 1829636385.577865,
+    "expires": 1829661117.191134,
     "httpOnly": false,
     "secure": true,
     "sameSite": "None"
-  },
-  {
-    "name": "acw_tc",
-    "value": "ac12e15717950763832574632e09c408c9096801f3976a5b38e12e80a9b5a8",
-    "domain": "auth.qwen.ai",
-    "path": "/",
-    "expires": 1795078183.525803,
-    "httpOnly": true,
-    "secure": false,
-    "sameSite": "Lax"
-  },
-  {
-    "name": "refresh_token",
-    "value": "eyJhbGciOiJIUzI1NiIsImtpZCI6ImxlZ2FjeSIsInR5cCI6IkpXVCJ9.eyJpZCI6ImQzZjg1YWM2LTE2NDMtNDdkYS05NGNhLWMzZmRlNzQ1MzVhOSIsImp0aSI6ImRlMzdmZDQ5LTE4YTUtNDRlYi04N2NiLTUwM2M1MDNlMzdiZiIsInR5cGUiOiJyZWZyZXNoX3Rva2VuIiwiZXhwIjoxNzk3NjY4MzgzLCJpYXQiOjE3OTUwNzYzODN9.o5SR5OGE1HqzvBvCWZSm-YOHezkbb_O2UoehcN_LB9Q",
-    "domain": ".qwen.ai",
-    "path": "/",
-    "expires": 1797668383.525859,
-    "httpOnly": true,
-    "secure": true,
-    "sameSite": "Lax"
   },
   {
     "name": "xlly_s",
@@ -94,7 +64,7 @@
     "value": "1.1.320392050.1795076385",
     "domain": ".qwen.ai",
     "path": "/",
-    "expires": 1802852384,
+    "expires": 1802852385,
     "httpOnly": false,
     "secure": false,
     "sameSite": "Lax"
@@ -104,7 +74,7 @@
     "value": "GA1.1.1790475171.1795076385",
     "domain": ".qwen.ai",
     "path": "/",
-    "expires": 1829636621.20384,
+    "expires": 1829661116.265727,
     "httpOnly": false,
     "secure": false,
     "sameSite": "Lax"
@@ -124,77 +94,119 @@
     "value": "d3f85ac6-1643-47da-94ca-c3fde74535a9",
     "domain": ".qwen.ai",
     "path": "/",
-    "expires": 1829636622.103676,
+    "expires": 1829661117.220059,
     "httpOnly": false,
     "secure": true,
     "sameSite": "None"
   },
   {
-    "name": "atpsida",
-    "value": "38da739e2e6f1e182cc56fcf_1795076385_1",
+    "name": "acw_tc",
+    "value": "ac12e65d17951011123615063e093a16bcbc87841c87b53bd3e231957b5e77",
+    "domain": "chat.qwen.ai",
+    "path": "/",
+    "expires": 1795102912.604062,
+    "httpOnly": true,
+    "secure": false,
+    "sameSite": "Lax"
+  },
+  {
+    "name": "acw_tc",
+    "value": "ac12e15817951011146907571e0b8578a87db5b80262cb681d0e0ea775f616",
+    "domain": "auth.qwen.ai",
+    "path": "/",
+    "expires": 1795102914.949925,
+    "httpOnly": true,
+    "secure": false,
+    "sameSite": "Lax"
+  },
+  {
+    "name": "refresh_token",
+    "value": "eyJhbGciOiJIUzI1NiIsImtpZCI6ImxlZ2FjeSIsInR5cCI6IkpXVCJ9.eyJpZCI6ImQzZjg1YWM2LTE2NDMtNDdkYS05NGNhLWMzZmRlNzQ1MzVhOSIsImp0aSI6ImU4ODcyZGNlLTFkYWYtNDlmZi1iNWM2LWU1MWNhNDRmZmI1YiIsInR5cGUiOiJyZWZyZXNoX3Rva2VuIiwiZXhwIjoxNzk3NjkzMTE0LCJpYXQiOjE3OTUxMDExMTR9.JvcatyufHS3MeMIakOlnSA-zdLZMVhOjvY6j8744SAg",
     "domain": ".qwen.ai",
+    "path": "/",
+    "expires": 1797693114.950031,
+    "httpOnly": true,
+    "secure": true,
+    "sameSite": "Lax"
+  },
+  {
+    "name": "cbc",
+    "value": "T2gAz2krUlkYKGGrdr-vx-PuozWfxFpODgBM4Fnuxg5Ixo39JaArfka4KblCgGlDJqo=",
+    "domain": ".alibaba.com",
+    "path": "/",
+    "expires": 1826637115.21442,
+    "httpOnly": false,
+    "secure": true,
+    "sameSite": "None"
+  },
+  {
+    "name": "sca",
+    "value": "9f1d1b98",
+    "domain": ".mmstat.com",
     "path": "/",
     "expires": -1,
     "httpOnly": false,
     "secure": true,
-    "sameSite": "None"
-  },
-  {
-    "name": "cbc",
-    "value": "T2gALXHqs41N1EQSCYvjIn6xfzeXuGJOIiMZ9MlzZDQrlH3HWyJgw3vOQR_VvnTsnUM=",
-    "domain": ".alibaba.com",
-    "path": "/",
-    "expires": 1826612619.717045,
-    "httpOnly": false,
-    "secure": true,
-    "sameSite": "None"
+    "sameSite": "None",
+    "partitionKey": "https://qwen.ai",
+    "_crHasCrossSiteAncestor": true
   },
   {
     "name": "_ga_64K8VGJ460",
-    "value": "GS2.1.s1795076384$o1$g1$t1795076621$j60$l0$h0",
+    "value": "GS2.1.s1795101116$o2$g0$t1795101116$j60$l0$h0",
     "domain": ".qwen.ai",
     "path": "/",
-    "expires": 1829636621.203508,
+    "expires": 1829661116.265076,
     "httpOnly": false,
     "secure": false,
     "sameSite": "Lax"
   },
   {
     "name": "ssxmod_itna",
-    "value": "1-YuDt7KDIe_xjxWqYQKP79DWKBI6qQFKGHDypxYK0CDmxjKidqDUCYNCj3RjxmqW_55MB1DD=StAqDsQGY3qDyzxA3DTo3ht5kbDOiNIsg2ivhe3g6YChuENVzZDnfO7ztljqexB3DExZDZt4GmG4DSRDD9DDmxxiU/bOrDz4DB_4GwDGEPxAYADBjVRiE4rm24ViKrKAYp8PL7NioYB2hY3fYseEDkTGv=70YFqQ6zGY41_pjjDDf7u3dzQieQxB=Lx=2Q8e3agav4W4X2PgG=K0hUCAGzWzAs4_Ge9bm866YnZ39xBrm714uehVzhDwIDD",
+    "value": "1-YqfxuDBD2Awq0D4T=xIxAhDYuexgDYKGHDyxWKY0C8DLxnRDGdK2qH8_3DyBrAl0Ah5eSR1o5D/WiimoDUg4iaDIbnwCDjryq4qBEnL5PgKGBxbNNty0Q8cYNXUlDyRkvttCrqexB3DEgmxl1eDogeDnO4DjxDYP4GCVpbwDleD0ZeD5xDT=4irtx0Ox84b5fAw54072jyPYOwau8DbeBxF7r0PHnwYYGMqzAw4KCnDqIKNeAktut9aDDcjH1p5po_IDlI9_UAoNSWLVIq401zC_7GtqGPH7rm5tXTNVee2HGGYy_MPjycjKGlIPTGIYmvdQ7ceD",
     "domain": ".qwen.ai",
     "path": "/",
-    "expires": 1795078422,
+    "expires": 1795102917,
     "httpOnly": false,
     "secure": false,
     "sameSite": "Lax"
   },
   {
     "name": "ssxmod_itna2",
-    "value": "1-YuDt7KDIe_xjxWqYQKP79DWKBI6qQFKGHDypxYK0CDmxjKidqDUCYNCj3RjxmqW_55MB1DD=StY4DW_bYfgTAt1RiHXsxom02KEzTYD",
+    "value": "1-YqfxuDBD2Awq0D4T=xIxAhDYuexgDYKGHDyxWKY0C8DLxnRDGdK2qH8_3DyBrAl0Ah5eSR1reDAeZinRItORWrtz/DRiv_dYG9ZhD",
     "domain": ".qwen.ai",
     "path": "/",
-    "expires": 1795078422,
+    "expires": 1795102917,
     "httpOnly": false,
     "secure": false,
     "sameSite": "Lax"
   },
   {
     "name": "tfstk",
-    "value": "g1fEgiG8AWFeQVqcuZAz7E1sdIAp1QrjL_tWrabkRHx3v_Oyrh7rA9_5rQPyjBvRd3tB4Q7R0PZbGS_dJ8d0coNjiBoryQKuNQ26sN3Ib-qbGS_nh-Ydco6SlKXpPUAk-HvlSP8WoYAkK3Ag7U8nEDvhqN4wXe-ot3DHjhYkPQxlqQ4NShLkZejkZP7MXUAuvsf-_Up3gWGQ8B222p-c-hlP218HLvQHbbcl_OJembtZZbDwJaHIOnh4FnXvAKsfmlMBxtWlhLW_6VKhHOsH7_Ex13BGE6OGtlm229TA4anJSt-cwu5xUpY97nZabG-qkUOvoZ8IeYpLJF-b-yD-epY97naa7YHJpyLwcy4h.",
+    "value": "gra-Nub_ftXu_4_fBUjmWUZmiBf09iVyr8P6-vDkA-eYd81y-Wikdeexn_PoPyE2J5PUr_uha4Pr826GIVBga7uFPIGoFtVfOXuKN9t0ilNr826DbEp5y7yJgbIjA21xlXGnO2iSAK1xtftIRDTBcKGnhvgQd0gflflBV3GSVZ1xTxMIR2wQGshnhvgIRJNXZfjxLQMwJJ18CArDMfTBRrh-VNVSheG4kbn-C7aJReOZw0H6FxWuXo_EcWoL8B8LYWNaAmUdyQk_rlqsDy7wz4ZairngPapZwoNTHc4DngrLSPUyXdxYy31AMH-EPj5w1kq4CKGhkjHGibxeYmhqMAfAMH-EVjlxIsckYHoxg",
     "domain": ".qwen.ai",
     "path": "/",
-    "expires": 1810628618,
+    "expires": 1810653114,
     "httpOnly": false,
     "secure": true,
     "sameSite": "None"
   },
   {
     "name": "isg",
-    "value": "BEhIKjTctpWMS9oTGVDSXOqxGbZa8az7BIdvcgL5tUO23etHswN_ievPU62tbWTT",
+    "value": "BFxc5Z2hWpAj1C7PTfSO2FYNLXoO1QD_CKv7zjZdSccqgf8LR-fTjecj5_F5CThX",
     "domain": ".qwen.ai",
     "path": "/",
-    "expires": 1810628618,
+    "expires": 1810653113,
+    "httpOnly": false,
+    "secure": true,
+    "sameSite": "None"
+  },
+  {
+    "name": "atpsida",
+    "value": "0115b4ccf2bf6247402caa8c_1795101117_1",
+    "domain": ".qwen.ai",
+    "path": "/",
+    "expires": -1,
     "httpOnly": false,
     "secure": true,
     "sameSite": "None"

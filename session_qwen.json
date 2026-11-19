@@ -14,7 +14,7 @@
     "value": "light",
     "domain": "chat.qwen.ai",
     "path": "/",
-    "expires": 1826637113.233963,
+    "expires": 1826647090.643032,
     "httpOnly": false,
     "secure": false,
     "sameSite": "Lax"
@@ -24,7 +24,7 @@
     "value": "en-US",
     "domain": "chat.qwen.ai",
     "path": "/",
-    "expires": 1826637113.247533,
+    "expires": 1826647090.656429,
     "httpOnly": false,
     "secure": false,
     "sameSite": "Lax"
@@ -74,7 +74,7 @@
     "value": "GA1.1.1790475171.1795076385",
     "domain": ".qwen.ai",
     "path": "/",
-    "expires": 1829661116.265727,
+    "expires": 1829671094.397753,
     "httpOnly": false,
     "secure": false,
     "sameSite": "Lax"
@@ -94,30 +94,10 @@
     "value": "d3f85ac6-1643-47da-94ca-c3fde74535a9",
     "domain": ".qwen.ai",
     "path": "/",
-    "expires": 1829661117.220059,
+    "expires": 1829671093.931067,
     "httpOnly": false,
     "secure": true,
     "sameSite": "None"
-  },
-  {
-    "name": "acw_tc",
-    "value": "ac12e65d17951011123615063e093a16bcbc87841c87b53bd3e231957b5e77",
-    "domain": "chat.qwen.ai",
-    "path": "/",
-    "expires": 1795102912.604062,
-    "httpOnly": true,
-    "secure": false,
-    "sameSite": "Lax"
-  },
-  {
-    "name": "acw_tc",
-    "value": "ac12e15817951011146907571e0b8578a87db5b80262cb681d0e0ea775f616",
-    "domain": "auth.qwen.ai",
-    "path": "/",
-    "expires": 1795102914.949925,
-    "httpOnly": true,
-    "secure": false,
-    "sameSite": "Lax"
   },
   {
     "name": "refresh_token",
@@ -128,16 +108,6 @@
     "httpOnly": true,
     "secure": true,
     "sameSite": "Lax"
-  },
-  {
-    "name": "cbc",
-    "value": "T2gAz2krUlkYKGGrdr-vx-PuozWfxFpODgBM4Fnuxg5Ixo39JaArfka4KblCgGlDJqo=",
-    "domain": ".alibaba.com",
-    "path": "/",
-    "expires": 1826637115.21442,
-    "httpOnly": false,
-    "secure": true,
-    "sameSite": "None"
   },
   {
     "name": "sca",
@@ -152,56 +122,6 @@
     "_crHasCrossSiteAncestor": true
   },
   {
-    "name": "_ga_64K8VGJ460",
-    "value": "GS2.1.s1795101116$o2$g0$t1795101116$j60$l0$h0",
-    "domain": ".qwen.ai",
-    "path": "/",
-    "expires": 1829661116.265076,
-    "httpOnly": false,
-    "secure": false,
-    "sameSite": "Lax"
-  },
-  {
-    "name": "ssxmod_itna",
-    "value": "1-YqfxuDBD2Awq0D4T=xIxAhDYuexgDYKGHDyxWKY0C8DLxnRDGdK2qH8_3DyBrAl0Ah5eSR1o5D/WiimoDUg4iaDIbnwCDjryq4qBEnL5PgKGBxbNNty0Q8cYNXUlDyRkvttCrqexB3DEgmxl1eDogeDnO4DjxDYP4GCVpbwDleD0ZeD5xDT=4irtx0Ox84b5fAw54072jyPYOwau8DbeBxF7r0PHnwYYGMqzAw4KCnDqIKNeAktut9aDDcjH1p5po_IDlI9_UAoNSWLVIq401zC_7GtqGPH7rm5tXTNVee2HGGYy_MPjycjKGlIPTGIYmvdQ7ceD",
-    "domain": ".qwen.ai",
-    "path": "/",
-    "expires": 1795102917,
-    "httpOnly": false,
-    "secure": false,
-    "sameSite": "Lax"
-  },
-  {
-    "name": "ssxmod_itna2",
-    "value": "1-YqfxuDBD2Awq0D4T=xIxAhDYuexgDYKGHDyxWKY0C8DLxnRDGdK2qH8_3DyBrAl0Ah5eSR1reDAeZinRItORWrtz/DRiv_dYG9ZhD",
-    "domain": ".qwen.ai",
-    "path": "/",
-    "expires": 1795102917,
-    "httpOnly": false,
-    "secure": false,
-    "sameSite": "Lax"
-  },
-  {
-    "name": "tfstk",
-    "value": "gra-Nub_ftXu_4_fBUjmWUZmiBf09iVyr8P6-vDkA-eYd81y-Wikdeexn_PoPyE2J5PUr_uha4Pr826GIVBga7uFPIGoFtVfOXuKN9t0ilNr826DbEp5y7yJgbIjA21xlXGnO2iSAK1xtftIRDTBcKGnhvgQd0gflflBV3GSVZ1xTxMIR2wQGshnhvgIRJNXZfjxLQMwJJ18CArDMfTBRrh-VNVSheG4kbn-C7aJReOZw0H6FxWuXo_EcWoL8B8LYWNaAmUdyQk_rlqsDy7wz4ZairngPapZwoNTHc4DngrLSPUyXdxYy31AMH-EPj5w1kq4CKGhkjHGibxeYmhqMAfAMH-EVjlxIsckYHoxg",
-    "domain": ".qwen.ai",
-    "path": "/",
-    "expires": 1810653114,
-    "httpOnly": false,
-    "secure": true,
-    "sameSite": "None"
-  },
-  {
-    "name": "isg",
-    "value": "BFxc5Z2hWpAj1C7PTfSO2FYNLXoO1QD_CKv7zjZdSccqgf8LR-fTjecj5_F5CThX",
-    "domain": ".qwen.ai",
-    "path": "/",
-    "expires": 1810653113,
-    "httpOnly": false,
-    "secure": true,
-    "sameSite": "None"
-  },
-  {
     "name": "atpsida",
     "value": "0115b4ccf2bf6247402caa8c_1795101117_1",
     "domain": ".qwen.ai",
@@ -210,5 +130,85 @@
     "httpOnly": false,
     "secure": true,
     "sameSite": "None"
+  },
+  {
+    "name": "acw_tc",
+    "value": "ac12e65c17951110893911241e093b6cdeaae88b9887a6f1e7a4ccf04489fe",
+    "domain": "chat.qwen.ai",
+    "path": "/",
+    "expires": 1795112889.641424,
+    "httpOnly": true,
+    "secure": false,
+    "sameSite": "Lax"
+  },
+  {
+    "name": "acw_tc",
+    "value": "ac12e15817951110922626330e0b864ee734785203c1811ef42a67ec64a594",
+    "domain": "auth.qwen.ai",
+    "path": "/",
+    "expires": 1795112892.512562,
+    "httpOnly": true,
+    "secure": false,
+    "sameSite": "Lax"
+  },
+  {
+    "name": "cbc",
+    "value": "T2gA3oLbMhiY6GuMuqVmx67tKcGz4UxzM2qOgi6awPknnuwrM6qYjbWWgd7s71zPl8I=",
+    "domain": ".alibaba.com",
+    "path": "/",
+    "expires": 1826647093.424487,
+    "httpOnly": false,
+    "secure": true,
+    "sameSite": "None"
+  },
+  {
+    "name": "_ga_64K8VGJ460",
+    "value": "GS2.1.s1795111094$o3$g0$t1795111094$j60$l0$h0",
+    "domain": ".qwen.ai",
+    "path": "/",
+    "expires": 1829671094.397352,
+    "httpOnly": false,
+    "secure": false,
+    "sameSite": "Lax"
+  },
+  {
+    "name": "tfstk",
+    "value": "gmtZNSqx1cnw9gckULjqLu6Ic_jOjil77n1fnKvcC1fi6nsVn6J41F9XnioVtGbv5s11giJvavGSV099BqIoNbiS-BWcViCmci0Cxpe_T4cSV09gP4X9NbTjAJ4l3tjcI1bDKvWfhsjcSZmnLtWgo5bMipDF9t60oO4gxpXlFrjcmIvnLtChiibMipDFH6fDZBtkDkWAS0o3Sn2YK1bNZdfU0IKFINz9I6r0mH8F7_qfToq08OpYWn0a4q1ky1_WNQcQ51YyoU_2RDedsULBs9-xwk1v-Ex1xhc3asL1egJ4M9YPZnh22r7Gp95STXRFa8BXo_XJ0rUAWABFNADgkrQGp95SLvzYkNHOL_MiI",
+    "domain": ".qwen.ai",
+    "path": "/",
+    "expires": 1810663092,
+    "httpOnly": false,
+    "secure": true,
+    "sameSite": "None"
+  },
+  {
+    "name": "isg",
+    "value": "BBoauk7pJOp4iahF_7pgciR7a8A8S54lmh39xCST5614l7nRFdntN9X1YXsLRxa9",
+    "domain": ".qwen.ai",
+    "path": "/",
+    "expires": 1810663092,
+    "httpOnly": false,
+    "secure": true,
+    "sameSite": "None"
+  },
+  {
+    "name": "ssxmod_itna",
+    "value": "1-YuiQD5BKDKYv8nDhaADuDn7xcm8tDXDUqAQD2DIqGQGcD8OD0PGO_5Iaxdl93l1FGxTx1edDGX4kDr4GkUDWPGED6i5Dk7jOGvmCsAk0hP5ViKRBRdYu9MhxfNdIjgwjx=DeGLDmFuOghxYDmWTDi5oD0KDGQYDR253d40TDDvTDCeDQ6YDPceDvg5o5aY_QFYDwPqz7CnD48pauCnK=CcakYWqd106tmixuYB=rjDNgfTa3kPDi6jjGnG7GGoDXO=Aobbw=63Y5GHkwqRQoQ0adj2a3nGRM0LNPBDKH==Y9zdKvXcRrDRRF4rj_MC2DhIDD",
+    "domain": ".qwen.ai",
+    "path": "/",
+    "expires": 1795112894,
+    "httpOnly": false,
+    "secure": false,
+    "sameSite": "Lax"
+  },
+  {
+    "name": "ssxmod_itna2",
+    "value": "1-YuiQD5BKDKYv8nDhaADuDn7xcm8tDXDUqAQD2DIqGQGcD8OD0PGO_5Iaxdl93l1FGxTx1exDPAPGbUmEbpeycAyXK7D7TwxtgUiD",
+    "domain": ".qwen.ai",
+    "path": "/",
+    "expires": 1795112894,
+    "httpOnly": false,
+    "secure": false,
+    "sameSite": "Lax"
   }
 ]

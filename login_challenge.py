@@ -6,6 +6,7 @@ import math
 import random
 import urllib.request
 import urllib.parse
+import urllib.error
 from playwright.sync_api import sync_playwright
 from playwright_stealth import Stealth
 import cv2
@@ -44,6 +45,28 @@ def split_telegram_text(text: str, limit: int = TG_MSG_LIMIT):
         chunks.append(rest)
     return chunks
 
+def _send_one_chunk(url, payload, chunk_no, total):
+    """Kirim 1 chunk; kalau Telegram balas 429, tunggu retry_after-nya lalu coba lagi (max 3x)."""
+    for attempt in range(1, 4):
+        try:
+            req = urllib.request.Request(url, data=payload, headers={"Content-Type": "application/x-www-form-urlencoded"})
+            urllib.request.urlopen(req, timeout=10)
+            return True
+        except urllib.error.HTTPError as e:
+            wait = 2.0
+            try:
+                body = json.loads(e.read().decode("utf-8", "ignore"))
+                wait = float(body.get("parameters", {}).get("retry_after", 2))
+            except Exception:
+                pass
+            print(f"[TG] chunk {chunk_no}/{total}: 429 (coba {attempt}/3), tunggu {wait}s lalu retry")
+            time.sleep(wait)
+        except Exception as e:
+            print(f"[TG Error] chunk {chunk_no}/{total}: {e}")
+            return False
+    print(f"[TG Error] chunk {chunk_no}/{total}: gagal setelah 3x retry (429)")
+    return False
+
 def send_telegram_msg(text: str):
     if not (TELEGRAM_BOT_TOKEN and TELEGRAM_CHAT_ID):
         print(f"[TG] {text}")
@@ -55,13 +78,9 @@ def send_telegram_msg(text: str):
             "chat_id": TELEGRAM_CHAT_ID,
             "text": chunk
         }).encode("utf-8")
-        try:
-            req = urllib.request.Request(url, data=payload, headers={"Content-Type": "application/x-www-form-urlencoded"})
-            urllib.request.urlopen(req, timeout=10)
-        except Exception as e:
-            print(f"[TG Error] chunk {i+1}/{len(chunks)}: {e}")
+        _send_one_chunk(url, payload, i + 1, len(chunks))
         if len(chunks) > 1 and i < len(chunks) - 1:
-            time.sleep(0.5)
+            time.sleep(2.0)
     if len(chunks) > 1:
         print(f"[TG] Jawaban panjang dipecah jadi {len(chunks)} pesan (total {len(text)} karakter)")
 

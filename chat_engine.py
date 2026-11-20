@@ -55,25 +55,52 @@ JS_CHECK_STREAM_DONE = r"""() => {
         }
     }
 
-    // Apakah Qwen masih dalam fase thinking? Indikator aktif berbunyi
-    // "Thinking..." / "Berpikir..." (dengan titik-titik = masih berjalan).
-    // Trace thinking yang SUDAH selesai ("Thinking completed",
+    // Apakah Qwen masih dalam fase thinking? Indikator aktif bisa berbunyi
+    // "Thinking..." / "Berpikir..." ATAU berupa kalimat status singkat
+    // seperti "Synthesizing core concepts..." (ikon lampu, di bawah bubble
+    // user) — run #73 membuktikan Qwen pakai kalimat status, bukan kata
+    // "Thinking". Trace yang SUDAH selesai ("Thinking completed",
     // "Thought for 12s") bukan thinking aktif — jangan sampai bikin loop
-    // nunggu selamanya.
+    // nunggu selamanya. Baris status itu singkat (< 200 karakter).
     let isThinking = false;
     const thinkEls = document.querySelectorAll(THINK_SEL);
     for (const el of thinkEls) {
-        const t = (el.innerText || '');
-        if (!t) continue;
-        if (/completed|selesai|thought for/i.test(t)) continue;
+        const t = (el.innerText || '').trim();
+        if (!t || t.length > 200) continue;
+        if (/completed|selesai|thought for|berpikir selama/i.test(t)) continue;
         const vis = el.offsetParent !== null || el.getClientRects().length > 0;
         if (!vis) continue;
-        if (/thinking\s*(\.{2,}|…)/i.test(t) || /berpikir\s*(\.{2,}|…)/i.test(t)) { isThinking = true; break; }
+        if (/thinking\s*(\.{2,}|…)/i.test(t) || /berpikir\s*(\.{2,}|…)/i.test(t)
+            || /^(synthesizing|analyzing|reasoning|menalar|menganalisis|menyintesis)\b/i.test(t)) { isThinking = true; break; }
     }
+    // Baris status juga bisa berada di luar container thinking (run #73:
+    // kalimat "Synthesizing..." keambil extractor dari [class*="content"]).
+    // Cek juga elemen konten di item assistant terakhir.
+    if (!isThinking) {
+        const items = document.querySelectorAll('[class*="chat-item-assistant"], [class*="message-assistant"], [class*="assistant-message"]');
+        if (items.length > 0) {
+            const lastItem = items[items.length - 1];
+            const cands = lastItem.querySelectorAll('[class*="content"], .markdown-body');
+            for (const el of cands) {
+                const t = (el.innerText || '').trim();
+                if (!t || t.length > 200) continue;
+                if (/completed|selesai|thought for|berpikir selama/i.test(t)) continue;
+                const vis = el.offsetParent !== null || el.getClientRects().length > 0;
+                if (!vis) continue;
+                if (/^(synthesizing|analyzing|reasoning|menalar|menganalisis|menyintesis)\b/i.test(t)) { isThinking = true; break; }
+            }
+        }
+    }
+
+    // Toast error jaringan ("Network error, reconnecting...") — diagnostik
+    // saja, tidak mengubah perilaku loop.
+    const bodyTxt = (document.body.innerText || '');
+    const hasNetworkError = /network error/i.test(bodyTxt);
 
     return {
         isGenerating: isGenerating,
         isThinking: isThinking,
+        hasNetworkError: hasNetworkError,
         answerLen: answerLen
     };
 }"""
@@ -90,7 +117,10 @@ JS_EXTRACTOR = r"""() => {
         const isThinkingOnly = (t) => /^(thinking|berpikir|memikirkan|menalar|reasoning)[\s.…。]*$/i.test(t)
             || /^(thinking completed|berpikir selesai|pemikiran selesai|thinking done)[\s.…。]*$/i.test(t)
             || /^thought for .+$/i.test(t)
-            || /^berpikir selama .+$/i.test(t);
+            || /^berpikir selama .+$/i.test(t)
+            // Baris status fase thinking ("Synthesizing core concepts...")
+            // — singkat, bukan jawaban. Hanya filter kalau pendek (< 200).
+            || (/^(synthesizing|analyzing)\b/i.test(t) && t.length < 200);
 
         // Gabungkan blok-blok jawaban TANPA duplikasi:
         //  - buang elemen yang punya ancestor di daftar yang sama (parent +
@@ -168,13 +198,21 @@ def wait_for_answer_done(page, timeout_sec: int = 900, idle_sec: int = 300) -> s
     """Tunggu jawaban Qwen selesai, TANPA patokan waktu absolut yang motong
     jawaban panjang (dulu: timeout 150s/300s — jawaban berat kepotong di tengah).
 
+    "Perkembangan" = panjang jawaban nambah, ATAU tombol stop masih aktif
+    (isGenerating), ATAU indikator thinking masih aktif (isThinking).
+    Tombol stop dihitung karena fase thinking Qwen ditandai tombol stop yang
+    masih nyala (run #73: status "Synthesizing..." + tombol stop aktif,
+    jawaban 0 karakter selama 300 detik — loop lama salah mengira stuck).
+
     Berhenti kalau:
       (a) jawaban lengkap — panjang stabil 4x cek (8 detik) + tidak ada
           indikator thinking/generating; atau stabil 30x cek (60 detik)
           tanpa thinking walau indikator generating masih nyala (jaga-jaga
           kalau deteksi tombol stop meleset);
+      (a3) stabil 150x cek (300 detik) apa pun indikatornya — pembatas kalau
+          thinking+generating dua-duanya nyangkut nyala;
       (b) stuck — 300 detik tidak ada perkembangan sama sekali (panjang tidak
-          nambah DAN tidak ada indikator thinking);
+          nambah, tidak ada tombol stop, tidak ada indikator thinking);
       (c) pengaman absolut — 900 detik (15 menit).
     Selama jawaban masih nambah atau Qwen masih mikir, tunggu terus — jawaban
     cepat selesai cepat, jawaban lambat ditungguin sampai beneran kelar.
@@ -184,18 +222,25 @@ def wait_for_answer_done(page, timeout_sec: int = 900, idle_sec: int = 300) -> s
     prev_len = 0
     stable_count = 0
     last_progress_t = start_t
+    tick = 0
     while True:
         time.sleep(2)
+        tick += 1
         status = page.evaluate(JS_CHECK_STREAM_DONE)
         current_len = status.get("answerLen", 0)
         is_gen = status.get("isGenerating", False)
         is_thinking = status.get("isThinking", False)
+        has_net_err = status.get("hasNetworkError", False)
         now = time.time()
         elapsed = int(now - start_t)
-        if current_len > prev_len or is_thinking:
+        if current_len > prev_len or is_gen or is_thinking:
             last_progress_t = now
         if current_len > 0 and current_len != prev_len:
             print(f"[{elapsed}s] Streaming ({current_len} karakter)...")
+        # Diagnostik berkala: biar log run berikutnya kelihatan jelas apa
+        # yang loop lihat (len / tombol stop / thinking / error jaringan).
+        if tick % 15 == 0:
+            print(f"[{elapsed}s] ⏳ len={current_len} gen={is_gen} think={is_thinking} netErr={has_net_err}")
         if current_len > 0:
             if current_len == prev_len:
                 stable_count += 1
@@ -208,6 +253,10 @@ def wait_for_answer_done(page, timeout_sec: int = 900, idle_sec: int = 300) -> s
                 # walau indikator generating masih nyala (deteksinya bisa meleset)
                 if not is_thinking and stable_count >= 30:
                     print(f"[{elapsed}s] 🚀 Respon stabil 60 detik — dianggap selesai!")
+                    return "done"
+                # Jalur paling lambat: 300 detik stabil apa pun indikatornya.
+                if stable_count >= 150:
+                    print(f"[{elapsed}s] 🚀 Respon stabil 300 detik — dianggap selesai!")
                     return "done"
             else:
                 stable_count = 0
@@ -356,9 +405,12 @@ def send_prompt_and_extract_answer(page, prompt: str, timeout_sec: int = 900, id
                     answer = answer.split(stopword)[0].strip()
             # Jangan pernah jadikan indikator "Thinking..." sebagai jawaban:
             # kalau Qwen masih mikir saat diekstrak, kembalikan '' saja.
+            # Termasuk baris status fase thinking ("Synthesizing...") yang
+            # singkat (< 200 karakter) — itu bukan jawaban.
             if re.match(r'^(thinking|berpikir|memikirkan|menalar|reasoning)[\s.…。]*$', answer, re.I) \
                     or re.match(r'^(thinking completed|berpikir selesai|pemikiran selesai|thinking done)[\s.…。]*$', answer, re.I) \
                     or re.match(r'^thought for .+$', answer, re.I) \
-                    or re.match(r'^berpikir selama .+$', answer, re.I):
+                    or re.match(r'^berpikir selama .+$', answer, re.I) \
+                    or (re.match(r'^(synthesizing|analyzing)\b', answer, re.I) and len(answer) < 200):
                 answer = ''
     return answer

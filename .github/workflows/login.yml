@@ -24,6 +24,17 @@ jobs:
         with:
           token: ${{ secrets.GH_PAT }}
 
+      - name: Restore Qwen session from secret
+        env:
+          QWEN_SESSION_JSON: ${{ secrets.QWEN_SESSION_JSON }}
+      run: |
+        if [ -n "$QWEN_SESSION_JSON" ]; then
+          printf '%s' "$QWEN_SESSION_JSON" > session_qwen.json
+          echo "Session restored from secret."
+      else
+        echo "No QWEN_SESSION_JSON secret yet; using repo session file if present."
+    fi
+  
       - name: Install & Setup Official Cloudflare WARP SOCKS5 Tunnel
         run: |
           echo "📥 Memasang Cloudflare WARP client resmi..."
@@ -80,18 +91,13 @@ jobs:
         run: |
           xvfb-run -a python -u login_challenge.py "${{ github.event.inputs.prompt || '' }}"
 
-      - name: Commit Updated Session If Changed
+      - name: Save Qwen session to secret
         env:
           GH_TOKEN: ${{ secrets.GH_PAT }}
-        run: |
-          git config user.name "Ciro Session Bot"
-          git config user.email "ciro@automated.local"
-          if [ -f session_qwen.json ]; then
-            git add session_qwen.json
-            if ! git diff --cached --quiet; then
-              git commit -m "Auto-persist session_qwen.json [skip ci]"
-              git push origin main
-            else
-              echo "No session changes to commit."
-            fi
-          fi
+      run: |
+        if [ -f session_qwen.json ] && [ -s session_qwen.json ]; then
+          gh secret set QWEN_SESSION_JSON --repo ciroxtreme/qwtt < session_qwen.json
+          echo "Session saved to secret."
+      else
+        echo "No session file to save."
+    fi

@@ -220,7 +220,7 @@ def send_chat_screenshot(photo_path: str, caption: str = ""):
     except Exception as e:
         print(f"[TG Photo Error] {e}")
 
-def wait_for_answer_done(page, timeout_sec: int = 1500, idle_sec: int = 300) -> str:
+def wait_for_answer_done(page, timeout_sec: int = 2400, idle_sec: int = 300) -> str:
     """Tunggu jawaban Qwen selesai, TANPA patokan waktu absolut yang motong
     jawaban panjang (dulu: timeout 150s/300s — jawaban berat kepotong di tengah).
 
@@ -239,7 +239,7 @@ def wait_for_answer_done(page, timeout_sec: int = 1500, idle_sec: int = 300) -> 
           thinking+generating dua-duanya nyangkut nyala;
       (b) stuck — 300 detik tidak ada perkembangan sama sekali (panjang tidak
           nambah, tidak ada tombol stop, tidak ada indikator thinking);
-      (c) pengaman absolut — 1500 detik (25 menit). Run #74 butuh >900 detik
+      (c) pengaman absolut — 2400 detik (40 menit). Run #75 butuh 1500 detik
           untuk jawaban 75 ribu karakter yang masih streaming, jadi cap lama
           (900s) yang motongnya; job timeout harus ikut naik ke 30 menit.
     Selama jawaban masih nambah atau Qwen masih mikir, tunggu terus — jawaban
@@ -296,7 +296,7 @@ def wait_for_answer_done(page, timeout_sec: int = 1500, idle_sec: int = 300) -> 
             print(f"[{elapsed}s] ⏰ Pengaman absolut {timeout_sec}s tercapai — ambil jawaban yang ada.")
             return "timeout"
 
-def send_prompt_and_extract_answer(page, prompt: str, timeout_sec: int = 1500, idle_sec: int = 300) -> str:
+def send_prompt_and_extract_answer(page, prompt: str, timeout_sec: int = 2400, idle_sec: int = 300) -> str:
     print(f"👉 Menyiapkan pengiriman pertanyaan ke Qwen: '{prompt}'...")
     page.goto("https://chat.qwen.ai/", wait_until="domcontentloaded", timeout=60000)
     time.sleep(3)

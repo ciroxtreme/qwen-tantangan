@@ -19,7 +19,7 @@ JS_DISMISS_ALL_POPUPS = """() => {
     }
 }"""
 
-JS_CHECK_STREAM_DONE = """() => {
+JS_CHECK_STREAM_DONE = r"""() => {
     let isGenerating = false;
     const buttons = document.querySelectorAll('button, div[role="button"]');
     for (const b of buttons) {
@@ -37,16 +37,21 @@ JS_CHECK_STREAM_DONE = """() => {
         isGenerating = true;
     }
 
-    // Hitung panjang respon assistant
-    const targets = document.querySelectorAll('.markdown-body, [class*="message-content"], [class*="assistant"]');
+    // Hitung panjang jawaban FINAL saja: .markdown-body terakhir yang BUKAN
+    // thinking/reasoning. Sebelumnya markdown terakhir apa pun dipakai, jadi
+    // stabilnya thinking trace bisa dianggap "selesai" padahal jawaban asli
+    // masih streaming (inilah yang bikin jawaban panjang kepotong).
+    const THINK_SEL = '[class*="thinking"], [class*="reasoning"], [class*="thought"], [class*="collapse"], [class*="think-"]';
+    const targets = document.querySelectorAll('.markdown-body');
     let answerLen = 0;
-    if (targets.length > 0) {
-        for (let i = targets.length - 1; i >= 0; i--) {
-            const t = (targets[i].innerText || '').trim();
-            if (t && !t.includes("Ada yang bisa saya bantu?") && !t.includes("How can I help you?")) {
-                answerLen = t.length;
-                break;
-            }
+    for (let i = targets.length - 1; i >= 0; i--) {
+        const el = targets[i];
+        if (el.closest(THINK_SEL) !== null) continue;
+        if (el.closest('[class*="user"]') !== null) continue;
+        const t = (el.innerText || '').trim();
+        if (t && !t.includes("Ada yang bisa saya bantu?") && !t.includes("How can I help you?")) {
+            answerLen = t.length;
+            break;
         }
     }
 
@@ -56,31 +61,46 @@ JS_CHECK_STREAM_DONE = """() => {
     };
 }"""
 
-JS_EXTRACTOR = """() => {
+JS_EXTRACTOR = r"""() => {
     try {
+        const THINK_SEL = '[class*="thinking"], [class*="reasoning"], [class*="thought"], [class*="collapse"], [class*="think-"]';
+        const isBad = (el) => el.closest(THINK_SEL) !== null || el.closest('[class*="user"]') !== null;
+        const stripPrefix = (t) => (t || '').replace(/^(Berpikir selesai|Thinking completed)\s*/i, '').trim();
+        const isGreeting = (t) => t.includes('How can I help') || t.includes('Ada yang bisa saya bantu');
+
+        // Gabungkan blok-blok jawaban TANPA duplikasi:
+        //  - buang elemen yang punya ancestor di daftar yang sama (parent +
+        //    child punya innerText yang sama -> inilah penyebab jawaban
+        //    keulang 6x di versi sebelumnya)
+        //  - buang blok yang teksnya sudah tercakup blok lain
+        const dedupeJoin = (els) => {
+            const top = els.filter(el => !els.some(o => o !== el && o.contains(el)));
+            const parts = [];
+            for (const el of top) {
+                if (isBad(el)) continue;
+                let t = stripPrefix(el.innerText);
+                if (!t || t.length <= 5 || isGreeting(t)) continue;
+                if (parts.some(p => p.includes(t) || t.includes(p))) continue;
+                parts.push(t);
+            }
+            return parts.join(String.fromCharCode(10) + String.fromCharCode(10));
+        };
+
         const items = document.querySelectorAll('[class*="chat-item-assistant"], [class*="message-assistant"], [class*="assistant-message"]');
         if (items.length > 0) {
             const lastItem = items[items.length - 1];
             const mds = Array.from(lastItem.querySelectorAll('.markdown-body, [class*="markdown"], [class*="content"]'));
-            const cleanMds = mds.filter(el => !el.closest('[class*="thinking"], [class*="reasoning"], [class*="thought"], [class*="collapse"]'));
-            if (cleanMds.length > 0) {
-                const txt = cleanMds.map(el => (el.innerText || '').trim()).filter(Boolean).join(String.fromCharCode(10) + String.fromCharCode(10));
-                if (txt && txt.length > 5 && !txt.includes('How can I help')) {
-                    return txt;
-                }
-            }
+            const txt = dedupeJoin(mds);
+            if (txt) return txt;
         }
+        // Fallback: blok markdown terakhir yang valid di seluruh halaman
         const allMd = Array.from(document.querySelectorAll('.markdown-body'));
-        const valid = allMd.filter(el => {
-            const isUser = el.closest('[class*="user"]') !== null;
-            const isThought = el.closest('[class*="thinking"], [class*="reasoning"], [class*="thought"]') !== null;
-            return !isUser && !isThought;
-        });
+        const valid = allMd.filter(el => !isBad(el));
         if (valid.length > 0) {
             const last = valid[valid.length - 1];
-            let txt = (last.innerText || '').trim();
-            if (txt && !txt.includes('How can I help') && !txt.includes('Ada yang bisa')) {
-                return txt.replace(/^(Berpikir selesai|Thinking completed)\s*/i, '').trim();
+            let txt = stripPrefix(last.innerText);
+            if (txt && !isGreeting(txt)) {
+                return txt;
             }
         }
         return '';

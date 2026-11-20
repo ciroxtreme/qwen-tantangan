@@ -67,6 +67,13 @@ JS_EXTRACTOR = r"""() => {
         const isBad = (el) => el.closest(THINK_SEL) !== null || el.closest('[class*="user"]') !== null;
         const stripPrefix = (t) => (t || '').replace(/^(Berpikir selesai|Thinking completed)\s*/i, '').trim();
         const isGreeting = (t) => t.includes('How can I help') || t.includes('Ada yang bisa saya bantu');
+        // "Thinking..." / "Berpikir..." / "Thought for 12s" adalah indikator
+        // status, BUKAN jawaban. Kalau ini yang keambil (Qwen masih mikir
+        // saat diekstrak), jangan pernah dijadiin jawaban — kembalikan ''.
+        const isThinkingOnly = (t) => /^(thinking|berpikir|memikirkan|menalar|reasoning)[\s.…。]*$/i.test(t)
+            || /^(thinking completed|berpikir selesai|pemikiran selesai|thinking done)[\s.…。]*$/i.test(t)
+            || /^thought for .+$/i.test(t)
+            || /^berpikir selama .+$/i.test(t);
 
         // Gabungkan blok-blok jawaban TANPA duplikasi:
         //  - buang elemen yang punya ancestor di daftar yang sama (parent +
@@ -79,7 +86,7 @@ JS_EXTRACTOR = r"""() => {
             for (const el of top) {
                 if (isBad(el)) continue;
                 let t = stripPrefix(el.innerText);
-                if (!t || t.length <= 5 || isGreeting(t)) continue;
+                if (!t || t.length <= 5 || isGreeting(t) || isThinkingOnly(t)) continue;
                 if (parts.some(p => p.includes(t) || t.includes(p))) continue;
                 parts.push(t);
             }
@@ -99,7 +106,7 @@ JS_EXTRACTOR = r"""() => {
         if (valid.length > 0) {
             const last = valid[valid.length - 1];
             let txt = stripPrefix(last.innerText);
-            if (txt && !isGreeting(txt)) {
+            if (txt && !isGreeting(txt) && !isThinkingOnly(txt)) {
                 return txt;
             }
         }
@@ -140,7 +147,7 @@ def send_chat_screenshot(photo_path: str, caption: str = ""):
     except Exception as e:
         print(f"[TG Photo Error] {e}")
 
-def send_prompt_and_extract_answer(page, prompt: str, timeout_sec: int = 150) -> str:
+def send_prompt_and_extract_answer(page, prompt: str, timeout_sec: int = 300) -> str:
     print(f"👉 Menyiapkan pengiriman pertanyaan ke Qwen: '{prompt}'...")
     page.goto("https://chat.qwen.ai/", wait_until="domcontentloaded", timeout=60000)
     time.sleep(3)
@@ -304,4 +311,11 @@ def send_prompt_and_extract_answer(page, prompt: str, timeout_sec: int = 150) ->
             for stopword in ["AI-generated content may not be accurate", "Auto", "New Chat"]:
                 if stopword in answer:
                     answer = answer.split(stopword)[0].strip()
+            # Jangan pernah jadikan indikator "Thinking..." sebagai jawaban:
+            # kalau Qwen masih mikir saat diekstrak, kembalikan '' saja.
+            if re.match(r'^(thinking|berpikir|memikirkan|menalar|reasoning)[\s.…。]*$', answer, re.I) \
+                    or re.match(r'^(thinking completed|berpikir selesai|pemikiran selesai|thinking done)[\s.…。]*$', answer, re.I) \
+                    or re.match(r'^thought for .+$', answer, re.I) \
+                    or re.match(r'^berpikir selama .+$', answer, re.I):
+                answer = ''
     return answer

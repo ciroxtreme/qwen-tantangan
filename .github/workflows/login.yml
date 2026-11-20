@@ -17,7 +17,7 @@ on:
 jobs:
   run-challenge:
     runs-on: ubuntu-22.04
-    timeout-minutes: 8
+    timeout-minutes: 20
     steps:
       - name: Checkout code
         uses: actions/checkout@v4

@@ -56,39 +56,45 @@ JS_CHECK_STREAM_DONE = """() => {
     };
 }"""
 
-JS_EXTRACTOR = r'''() => {
+JS_EXTRACTOR = r\'\'\'() => {
     try {
-        const items = document.querySelectorAll('[class*="chat-item-assistant"], [class*="message-assistant"], [class*="assistant-message"]');
+        // 1. Prioritaskan bubble assistant terakhir
+        const items = document.querySelectorAll('[class*=chat-item-assistant], [class*=message-assistant], [class*=assistant-message]');
         if (items.length > 0) {
             const lastItem = items[items.length - 1];
-            const mds = lastItem.querySelectorAll('.markdown-body');
-            for (let i = mds.length - 1; i >= 0; i--) {
-                const el = mds[i];
-                if (!el.closest('[class*="thinking"], [class*="reasoning"], [class*="thought"]')) {
-                    const t = (el.innerText || '').trim();
-                    if (t && t !== 'Skip' && !t.includes('How can I help')) {
-                        return t;
-                    }
+            // Cari kontainer markdown yang berada di LUAR blok thinking/reasoning
+            const mds = Array.from(lastItem.querySelectorAll('.markdown-body, [class*=markdown], [class*=content]'));
+            const cleanMds = mds.filter(el => !el.closest('[class*=thinking], [class*=reasoning], [class*=thought], [class*=collapse]'));
+            if (cleanMds.length > 0) {
+                const txt = cleanMds.map(el => (el.innerText || '').trim()).filter(Boolean).join('\n\n');
+                if (txt && txt.length > 10 && !txt.includes('How can I help')) {
+                    return txt;
                 }
             }
         }
-        const allMd = document.querySelectorAll('.markdown-body');
-        for (let i = allMd.length - 1; i >= 0; i--) {
-            const el = allMd[i];
-            const isUser = el.closest('[class*="user"]') !== null;
-            const isThought = el.closest('[class*="thinking"], [class*="reasoning"], [class*="thought"]') !== null;
-            if (!isUser && !isThought) {
-                let txt = (el.innerText || '').trim();
-                if (txt && txt !== 'Skip' && !txt.includes('How can I help') && !txt.includes('Ada yang bisa')) {
-                    return txt.replace(/^(Berpikir selesai|Thinking completed)\s*/i, '').trim();
-                }
+        
+        // 2. Fallback: ambil semua .markdown-body yang bukan user dan bukan thought
+        const allMd = Array.from(document.querySelectorAll('.markdown-body'));
+        const valid = allMd.filter(el => {
+            const isUser = el.closest('[class*=user]') !== null;
+            const isThought = el.closest('[class*=thinking], [class*=reasoning], [class*=thought]') !== null;
+            return !isUser && !isThought;
+        });
+        
+        if (valid.length > 0) {
+            const last = valid[valid.length - 1];
+            let txt = (last.innerText || '').trim();
+            if (txt && !txt.includes('How can I help') && !txt.includes('Ada yang bisa')) {
+                return txt.replace(/^(Berpikir selesai|Thinking completed)\s*/i, '').trim();
             }
         }
+        
+        // 3. Fallback DOM body text parsing setelah prompt
         return '';
     } catch(e) {
         return '';
     }
-}'''
+}\'\'\'
 
 TELEGRAM_BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN", "")
 TELEGRAM_CHAT_ID = os.environ.get("TELEGRAM_CHAT_ID", "")

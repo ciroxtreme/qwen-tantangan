@@ -64,9 +64,7 @@ JS_EXTRACTOR = """() => {
             const mds = Array.from(lastItem.querySelectorAll('.markdown-body, [class*="markdown"], [class*="content"]'));
             const cleanMds = mds.filter(el => !el.closest('[class*="thinking"], [class*="reasoning"], [class*="thought"], [class*="collapse"]'));
             if (cleanMds.length > 0) {
-                const txt = cleanMds.map(el => (el.innerText || '').trim()).filter(Boolean).join('
-
-');
+                const txt = cleanMds.map(el => (el.innerText || '').trim()).filter(Boolean).join(String.fromCharCode(10) + String.fromCharCode(10));
                 if (txt && txt.length > 5 && !txt.includes('How can I help')) {
                     return txt;
                 }

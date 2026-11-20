@@ -55,8 +55,25 @@ JS_CHECK_STREAM_DONE = r"""() => {
         }
     }
 
+    // Apakah Qwen masih dalam fase thinking? Indikator aktif berbunyi
+    // "Thinking..." / "Berpikir..." (dengan titik-titik = masih berjalan).
+    // Trace thinking yang SUDAH selesai ("Thinking completed",
+    // "Thought for 12s") bukan thinking aktif — jangan sampai bikin loop
+    // nunggu selamanya.
+    let isThinking = false;
+    const thinkEls = document.querySelectorAll(THINK_SEL);
+    for (const el of thinkEls) {
+        const t = (el.innerText || '');
+        if (!t) continue;
+        if (/completed|selesai|thought for/i.test(t)) continue;
+        const vis = el.offsetParent !== null || el.getClientRects().length > 0;
+        if (!vis) continue;
+        if (/thinking\s*(\.{2,}|…)/i.test(t) || /berpikir\s*(\.{2,}|…)/i.test(t)) { isThinking = true; break; }
+    }
+
     return {
         isGenerating: isGenerating,
+        isThinking: isThinking,
         answerLen: answerLen
     };
 }"""
@@ -147,7 +164,62 @@ def send_chat_screenshot(photo_path: str, caption: str = ""):
     except Exception as e:
         print(f"[TG Photo Error] {e}")
 
-def send_prompt_and_extract_answer(page, prompt: str, timeout_sec: int = 300) -> str:
+def wait_for_answer_done(page, timeout_sec: int = 900, idle_sec: int = 300) -> str:
+    """Tunggu jawaban Qwen selesai, TANPA patokan waktu absolut yang motong
+    jawaban panjang (dulu: timeout 150s/300s — jawaban berat kepotong di tengah).
+
+    Berhenti kalau:
+      (a) jawaban lengkap — panjang stabil 4x cek (8 detik) + tidak ada
+          indikator thinking/generating; atau stabil 30x cek (60 detik)
+          tanpa thinking walau indikator generating masih nyala (jaga-jaga
+          kalau deteksi tombol stop meleset);
+      (b) stuck — 300 detik tidak ada perkembangan sama sekali (panjang tidak
+          nambah DAN tidak ada indikator thinking);
+      (c) pengaman absolut — 900 detik (15 menit).
+    Selama jawaban masih nambah atau Qwen masih mikir, tunggu terus — jawaban
+    cepat selesai cepat, jawaban lambat ditungguin sampai beneran kelar.
+    Return: alasan berhenti ('done' | 'idle' | 'timeout').
+    """
+    start_t = time.time()
+    prev_len = 0
+    stable_count = 0
+    last_progress_t = start_t
+    while True:
+        time.sleep(2)
+        status = page.evaluate(JS_CHECK_STREAM_DONE)
+        current_len = status.get("answerLen", 0)
+        is_gen = status.get("isGenerating", False)
+        is_thinking = status.get("isThinking", False)
+        now = time.time()
+        elapsed = int(now - start_t)
+        if current_len > prev_len or is_thinking:
+            last_progress_t = now
+        if current_len > 0 and current_len != prev_len:
+            print(f"[{elapsed}s] Streaming ({current_len} karakter)...")
+        if current_len > 0:
+            if current_len == prev_len:
+                stable_count += 1
+                # Jangan pernah stop jika tombol stop/generating masih aktif!
+                # Harus stabil minimal 4 tick (8 detik) dan tombol stop sudah hilang
+                if not is_gen and not is_thinking and stable_count >= 4 and elapsed >= 10:
+                    print(f"[{elapsed}s] 🚀 Respon selesai lengkap dan tuntas!")
+                    return "done"
+                # Jalur lambat: 60 detik stabil tanpa thinking = selesai,
+                # walau indikator generating masih nyala (deteksinya bisa meleset)
+                if not is_thinking and stable_count >= 30:
+                    print(f"[{elapsed}s] 🚀 Respon stabil 60 detik — dianggap selesai!")
+                    return "done"
+            else:
+                stable_count = 0
+        prev_len = current_len
+        if now - last_progress_t > idle_sec:
+            print(f"[{elapsed}s] ⏸️ Tidak ada perkembangan selama {idle_sec}s — dianggap stuck, ambil jawaban yang ada.")
+            return "idle"
+        if now - start_t > timeout_sec:
+            print(f"[{elapsed}s] ⏰ Pengaman absolut {timeout_sec}s tercapai — ambil jawaban yang ada.")
+            return "timeout"
+
+def send_prompt_and_extract_answer(page, prompt: str, timeout_sec: int = 900, idle_sec: int = 300) -> str:
     print(f"👉 Menyiapkan pengiriman pertanyaan ke Qwen: '{prompt}'...")
     page.goto("https://chat.qwen.ai/", wait_until="domcontentloaded", timeout=60000)
     time.sleep(3)
@@ -261,36 +333,7 @@ def send_prompt_and_extract_answer(page, prompt: str, timeout_sec: int = 300) ->
     page_txt = page.evaluate("() => document.body.innerText")
     print(f"[DEBUG DOM AFTER SEND] Body sample (250 chars): {page_txt[:250].replace(chr(10), ' ')}")
     
-    start_t = time.time()
-    prev_len = 0
-    stable_count = 0
-
-    while time.time() - start_t < timeout_sec:
-        time.sleep(2)
-        status = page.evaluate(JS_CHECK_STREAM_DONE)
-        current_len = status.get("answerLen", 0)
-        has_stop = status.get("hasStop", False)
-        is_thinking = status.get("isThinkingOnly", False)
-        elapsed = int(time.time() - start_t)
-
-        if current_len > 0 and current_len != prev_len:
-            print(f"[{elapsed}s] Streaming ({current_len} karakter)...")
-
-        is_gen = status.get("isGenerating", False)
-        if current_len > 0:
-            if current_len == prev_len:
-                stable_count += 1
-                # Jangan pernah stop jika tombol stop/generating masih aktif!
-                # Harus stabil minimal 4 tick (8 detik) dan tombol stop sudah hilang
-                if not is_gen and stable_count >= 4 and elapsed >= 10:
-                    print(f"[{elapsed}s] 🚀 Respon selesai lengkap dan tuntas!")
-                    break
-                elif is_gen:
-                    stable_count = 0  # reset debounce jika masih generating
-            else:
-                stable_count = 0
-
-        prev_len = current_len
+    wait_for_answer_done(page, timeout_sec=timeout_sec, idle_sec=idle_sec)
 
     time.sleep(1)
     # Ambil screenshot jawaban lengkap beserta header model yang aktif di pojok kiri atas

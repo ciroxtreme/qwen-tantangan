@@ -17,20 +17,53 @@ TELEGRAM_CHAT_ID = os.environ.get("TELEGRAM_CHAT_ID")
 TARGET_EMAIL = os.environ.get("TARGET_EMAIL", "tuanciroxtreme@gmail.com")
 PROMPT_ASK = sys.argv[1] if len(sys.argv) > 1 and not sys.argv[1].startswith("--") else os.environ.get("PROMPT_ASK", "")
 
+# Telegram mentok 4096 karakter/pesan — jawaban panjang yang dikirim utuh
+# ditolak API ("message is too long") dan hilang begitu saja, padahal run-nya
+# sukses. Jadi teks panjang dipecah jadi beberapa pesan berurutan.
+TG_MSG_LIMIT = 4000
+
+def split_telegram_text(text: str, limit: int = TG_MSG_LIMIT):
+    """Pecah teks panjang jadi beberapa potong <= limit, diusahakan putus di
+    batas paragraf/baris/spasi supaya kata tidak terbelah."""
+    if len(text) <= limit:
+        return [text]
+    chunks = []
+    rest = text
+    while len(rest) > limit:
+        cut = limit
+        # Cari titik putus terbaik di 300 karakter terakhir sebelum batas
+        window = rest[max(0, limit - 300):limit]
+        for sep in ("\n\n", "\n", " "):
+            idx = window.rfind(sep)
+            if idx >= 0:
+                cut = max(0, limit - 300) + idx + len(sep)
+                break
+        chunks.append(rest[:cut].rstrip())
+        rest = rest[cut:].lstrip()
+    if rest:
+        chunks.append(rest)
+    return chunks
+
 def send_telegram_msg(text: str):
     if not (TELEGRAM_BOT_TOKEN and TELEGRAM_CHAT_ID):
         print(f"[TG] {text}")
         return
     url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
-    payload = urllib.parse.urlencode({
-        "chat_id": TELEGRAM_CHAT_ID,
-        "text": text
-    }).encode("utf-8")
-    try:
-        req = urllib.request.Request(url, data=payload, headers={"Content-Type": "application/x-www-form-urlencoded"})
-        urllib.request.urlopen(req, timeout=10)
-    except Exception as e:
-        print(f"[TG Error] {e}")
+    chunks = split_telegram_text(text)
+    for i, chunk in enumerate(chunks):
+        payload = urllib.parse.urlencode({
+            "chat_id": TELEGRAM_CHAT_ID,
+            "text": chunk
+        }).encode("utf-8")
+        try:
+            req = urllib.request.Request(url, data=payload, headers={"Content-Type": "application/x-www-form-urlencoded"})
+            urllib.request.urlopen(req, timeout=10)
+        except Exception as e:
+            print(f"[TG Error] chunk {i+1}/{len(chunks)}: {e}")
+        if len(chunks) > 1 and i < len(chunks) - 1:
+            time.sleep(0.5)
+    if len(chunks) > 1:
+        print(f"[TG] Jawaban panjang dipecah jadi {len(chunks)} pesan (total {len(text)} karakter)")
 
 def send_telegram_photo(photo_path: str, caption: str = ""):
     if not (TELEGRAM_BOT_TOKEN and TELEGRAM_CHAT_ID) or not os.path.exists(photo_path):

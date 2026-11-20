@@ -56,31 +56,28 @@ JS_CHECK_STREAM_DONE = """() => {
     };
 }"""
 
-JS_EXTRACTOR = r\'\'\'() => {
+JS_EXTRACTOR = """() => {
     try {
-        // 1. Prioritaskan bubble assistant terakhir
-        const items = document.querySelectorAll('[class*=chat-item-assistant], [class*=message-assistant], [class*=assistant-message]');
+        const items = document.querySelectorAll('[class*="chat-item-assistant"], [class*="message-assistant"], [class*="assistant-message"]');
         if (items.length > 0) {
             const lastItem = items[items.length - 1];
-            // Cari kontainer markdown yang berada di LUAR blok thinking/reasoning
-            const mds = Array.from(lastItem.querySelectorAll('.markdown-body, [class*=markdown], [class*=content]'));
-            const cleanMds = mds.filter(el => !el.closest('[class*=thinking], [class*=reasoning], [class*=thought], [class*=collapse]'));
+            const mds = Array.from(lastItem.querySelectorAll('.markdown-body, [class*="markdown"], [class*="content"]'));
+            const cleanMds = mds.filter(el => !el.closest('[class*="thinking"], [class*="reasoning"], [class*="thought"], [class*="collapse"]'));
             if (cleanMds.length > 0) {
-                const txt = cleanMds.map(el => (el.innerText || '').trim()).filter(Boolean).join('\n\n');
-                if (txt && txt.length > 10 && !txt.includes('How can I help')) {
+                const txt = cleanMds.map(el => (el.innerText || '').trim()).filter(Boolean).join('
+
+');
+                if (txt && txt.length > 5 && !txt.includes('How can I help')) {
                     return txt;
                 }
             }
         }
-        
-        // 2. Fallback: ambil semua .markdown-body yang bukan user dan bukan thought
         const allMd = Array.from(document.querySelectorAll('.markdown-body'));
         const valid = allMd.filter(el => {
-            const isUser = el.closest('[class*=user]') !== null;
-            const isThought = el.closest('[class*=thinking], [class*=reasoning], [class*=thought]') !== null;
+            const isUser = el.closest('[class*="user"]') !== null;
+            const isThought = el.closest('[class*="thinking"], [class*="reasoning"], [class*="thought"]') !== null;
             return !isUser && !isThought;
         });
-        
         if (valid.length > 0) {
             const last = valid[valid.length - 1];
             let txt = (last.innerText || '').trim();
@@ -88,14 +85,11 @@ JS_EXTRACTOR = r\'\'\'() => {
                 return txt.replace(/^(Berpikir selesai|Thinking completed)\s*/i, '').trim();
             }
         }
-        
-        // 3. Fallback DOM body text parsing setelah prompt
         return '';
     } catch(e) {
         return '';
     }
-}\'\'\'
-
+}"""
 TELEGRAM_BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN", "")
 TELEGRAM_CHAT_ID = os.environ.get("TELEGRAM_CHAT_ID", "")
 

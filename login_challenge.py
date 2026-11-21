@@ -270,6 +270,51 @@ def inspect_and_solve_baxia_multiround(page, max_rounds: int = 4):
     captcha_final = page.locator("#aliyunCaptcha-img, img.puzzle").first
     return captcha_final.count() == 0 or not captcha_final.is_visible()
 
+SESSION_FILE = "session_qwen.json"
+LOGGED_OUT_LINES = {"Log in", "Sign up", "Masuk", "Daftar"}
+LOGGED_OUT_PHRASES = ("Log in to unlock", "Confirm your age to continue")
+
+def detect_logged_out(page, context):
+    """Qwen versi anonim juga punya kotak chat, jadi textarea bukan bukti login.
+    Anggap logout kalau cookie refresh_token hilang, ada tombol Log in/Sign up,
+    atau muncul banner "Log in to unlock"."""
+    if not any(c["name"] == "refresh_token" and c.get("value") for c in context.cookies()):
+        return True, "cookie refresh_token tidak ada"
+    try:
+        body_txt = page.evaluate("() => document.body.innerText") or ""
+    except Exception:
+        body_txt = ""
+    lines = {ln.strip() for ln in body_txt.splitlines()}
+    hit = LOGGED_OUT_LINES & lines
+    if hit:
+        return True, f"tombol {sorted(hit)} terlihat"
+    for phrase in LOGGED_OUT_PHRASES:
+        if phrase in body_txt:
+            return True, f"teks '{phrase}' terlihat"
+    return False, ""
+
+def save_session(context):
+    cookies = context.cookies()
+    with open(SESSION_FILE, "w") as f:
+        json.dump(cookies, f, indent=2)
+    rt = next((c for c in cookies if c["name"] == "refresh_token"), None)
+    if rt and rt.get("expires", -1) > 0:
+        days = (rt["expires"] - time.time()) / 86400
+        print(f"💾 [SESSION] {len(cookies)} cookie disimpan, refresh_token berlaku {days:.1f} hari lagi.")
+    else:
+        print(f"💾 [SESSION] {len(cookies)} cookie disimpan.")
+
+def drop_session():
+    """Jangan timpa secret dengan cookie yang sudah mati."""
+    if os.path.exists(SESSION_FILE):
+        os.remove(SESSION_FILE)
+
+def fail_run(reason: str):
+    print(f"❌ {reason}")
+    send_telegram_msg(f"❌ [QWEN GAGAL] {reason}")
+    sys.exit(1)
+
+
 def main():
     send_telegram_msg(f"🚀 [TAHAP 1/5] Inisialisasi Playwright Stealth via WARP...\nTarget: {TARGET_EMAIL}")
     
@@ -304,9 +349,9 @@ def main():
         )
         
         # 1. Coba gunakan sesi tersimpan jika ada
-        if os.path.exists("session_qwen.json"):
+        if os.path.exists(SESSION_FILE):
             try:
-                with open("session_qwen.json") as f_s:
+                with open(SESSION_FILE) as f_s:
                     saved_c = json.load(f_s)
                     c_list = []
                     if isinstance(saved_c, dict):
@@ -322,51 +367,39 @@ def main():
         page = context.new_page()
 
         # Cek apakah sesi aktif langsung ke chat tanpa login ulang
-        if os.path.exists("session_qwen.json"):
+        if os.path.exists(SESSION_FILE):
             print("🚀 Memeriksa status login langsung di chat.qwen.ai...")
             page.goto("https://chat.qwen.ai/", wait_until="domcontentloaded", timeout=45000)
-            time.sleep(4)
-            body_txt = page.evaluate("() => document.body.innerText")
-            
-            # Tunggu dan validasi deterministik: periksa apakah form chat input aktif ATAU elemen user avatar muncul
-            is_logged_out = False
             try:
-                # Tunggu hingga 12 detik apakah textarea chat atau avatar profil muncul
-                page.wait_for_selector('textarea, [contenteditable="true"], [class*="avatar"], [class*="user"]', timeout=12000)
-                body_txt = page.evaluate("() => document.body.innerText")
-                # Jika ada teks Log in tapi ADA textarea chat dan history sidebar, jangan anggap logout!
-                has_chat_input = page.locator('textarea, [contenteditable="true"]').first.is_visible()
-                if has_chat_input:
-                    is_logged_out = False
-                else:
-                    is_logged_out = any(k in body_txt for k in ["Log in", "Sign up", "Masuk", "Daftar", "Confirm your age to continue"])
+                page.wait_for_load_state("networkidle", timeout=15000)
             except Exception:
-                body_txt = page.evaluate("() => document.body.innerText")
-                is_logged_out = any(k in body_txt for k in ["Log in", "Sign up", "Masuk", "Daftar", "Confirm your age to continue"])
-            
+                pass
+            time.sleep(3)
+            is_logged_out, why = detect_logged_out(page, context)
+
             if not is_logged_out:
-                print("🎉 [AUTO-LOGIN PERSISTEN] Sesi aktif! Memperbarui cookie terbaru (Keep-Alive)...")
-                
-                # Ekspor & segarkan cookie terbaru hasil keep-alive ke disk agar selalu diperpanjang
-                try:
-                    updated_cookies = context.cookies()
-                    with open("session_qwen.json", "w") as f:
-                        json.dump(updated_cookies, f, indent=2)
-                    print(f"🔄 [KEEP-ALIVE] Berhasil memperpanjang & menyimpan {len(updated_cookies)} cookie terbaru!")
-                except Exception as e:
-                    print(f"Warning saving keep-alive cookies: {e}")
+                print("🎉 [AUTO-LOGIN PERSISTEN] Sesi aktif! Menyimpan cookie terbaru (Keep-Alive)...")
+                save_session(context)
 
                 if PROMPT_ASK:
                     answer = send_prompt_and_extract_answer(page, PROMPT_ASK)
                     print("\n" + "="*40 + " QWEN FINAL ANSWER " + "="*40 + "\n")
                     print(answer)
                     print("\n" + "="*95 + "\n")
-                    if answer:
-                        send_telegram_msg(f"✨ [JAWABAN QWEN 4 MAX]:\n\n{answer}")
+                    is_logged_out, why = detect_logged_out(page, context)
+                    if is_logged_out:
+                        drop_session()
+                        fail_run(f"Sesi ternyata ter-logout saat kirim chat ({why}). Jalankan workflow lagi untuk login ulang via OTP.")
+                    # refresh_token bisa dirotasi Qwen selama chat, simpan versi terbaru
+                    save_session(context)
+                    if not answer:
+                        fail_run("Jawaban Qwen kosong.")
+                    send_telegram_msg(f"✨ [JAWABAN QWEN 4 MAX]:\n\n{answer}")
                 return
             else:
-                print("⚠️ [SESI KEDALUWARSA / LOGOUT] Terdeteksi tombol Log in atau Age Gate! Mengaktifkan flow re-login & kirim notifikasi ke Telegram...")
-                send_telegram_msg("⚠️ [QWEN ALERT] Sesi cookie Qwen telah kedaluwarsa atau ter-logout. Memulai prosedur re-login interaktif via email...")
+                print(f"⚠️ [SESI KEDALUWARSA / LOGOUT] {why}. Mengaktifkan flow re-login & kirim notifikasi ke Telegram...")
+                send_telegram_msg(f"⚠️ [QWEN ALERT] Sesi cookie Qwen kedaluwarsa atau ter-logout ({why}). Memulai prosedur re-login interaktif via email...")
+                drop_session()
 
         send_telegram_msg("🌐 [TAHAP 2/5] Membuka halaman login Qwen & mengisi email..."); print("1. Meluncur langsung ke URL Auth Qwen...")
         page.goto("https://chat.qwen.ai/auth?mode=signin", wait_until="load", timeout=60000)
@@ -466,16 +499,11 @@ def main():
             page.screenshot(path="final_logged_in.png")
             send_telegram_photo("final_logged_in.png", "🎉🎉 [SUKSES BESAR!!] STATUS BERHASIL LOGIN DI QWEN!!")
             
-            # Ekspor cookies lengkap persisten
-            cookies = context.cookies()
-            send_telegram_msg(f"🍪 [VICTORY!] Berhasil merebut {len(cookies)} Session Cookies lengkap!")
-            with open("session_qwen.json", "w") as f:
-                json.dump(cookies, f, indent=2)
-            try:
-                import subprocess
-                subprocess.run(["gh", "secret", "set", "QWEN_SESSION_JSON", "--repo", "ciroxtreme/qwtt", "--body", json.dumps(cookies)], check=False)
-            except Exception as e:
-                print(f"Notice sync secret: {e}")
+            is_logged_out, why = detect_logged_out(page, context)
+            if is_logged_out:
+                fail_run(f"Login OTP belum berhasil ({why}).")
+            save_session(context)
+            send_telegram_msg("🍪 [VICTORY!] Login berhasil, sesi baru disimpan.")
 
             # Eksekusi prompt pertanyaan langsung
             if PROMPT_ASK:
@@ -484,10 +512,12 @@ def main():
                 print("\n" + "="*40 + " QWEN FINAL ANSWER " + "="*40 + "\n")
                 print(answer)
                 print("\n" + "="*95 + "\n")
-                if answer:
-                    send_telegram_msg(f"✨ [JAWABAN QWEN 4 MAX]:\n\n{answer}")
+                save_session(context)
+                if not answer:
+                    fail_run("Jawaban Qwen kosong setelah login ulang.")
+                send_telegram_msg(f"✨ [JAWABAN QWEN 4 MAX]:\n\n{answer}")
         else:
-            send_telegram_msg("⚠️ Belum berhasil melewati ronde puzzle.")
+            fail_run("Belum berhasil login: OTP tidak diterima atau form OTP tidak muncul.")
 
         time.sleep(5)
 

@@ -32,12 +32,15 @@ jobs:
       - name: Restore Qwen session from secret
         env:
           QWEN_SESSION_JSON: ${{ secrets.QWEN_SESSION_JSON }}
+          QWEN_SESSION_PREV_JSON: ${{ secrets.QWEN_SESSION_PREV_JSON }}
         run: |
           if [ -n "$QWEN_SESSION_JSON" ]; then
             printf '%s' "$QWEN_SESSION_JSON" > session_qwen.json
-            echo "Session restored from secret."
-          else
-            echo "No QWEN_SESSION_JSON secret yet; using repo session file if present."
+            echo "Session restored from secret (session_qwen.json)."
+          fi
+          if [ -n "$QWEN_SESSION_PREV_JSON" ]; then
+            printf '%s' "$QWEN_SESSION_PREV_JSON" > session_qwen.prev.json
+            echo "Previous session restored from secret (session_qwen.prev.json)."
           fi
 
       - name: Setup Webshare Residential Rotating Proxy
@@ -83,7 +86,9 @@ jobs:
         run: |
           if [ -f session_qwen.json ] && [ -s session_qwen.json ]; then
             gh secret set QWEN_SESSION_JSON --repo ciroxtreme/qwtt < session_qwen.json
-            echo "Session saved to secret."
-          else
-            echo "No session file to save."
+            echo "Session saved to secret (QWEN_SESSION_JSON)."
+          fi
+          if [ -f session_qwen.prev.json ] && [ -s session_qwen.prev.json ]; then
+            gh secret set QWEN_SESSION_PREV_JSON --repo ciroxtreme/qwtt < session_qwen.prev.json
+            echo "Previous session backup saved to secret (QWEN_SESSION_PREV_JSON)."
           fi

@@ -1,3 +1,6 @@
 session_qwen.json
+session_qwen.prev.json
 *.png
 __pycache__/
+*.py[cod]
+*$py.class

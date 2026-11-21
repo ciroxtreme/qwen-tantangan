@@ -271,43 +271,88 @@ def inspect_and_solve_baxia_multiround(page, max_rounds: int = 4):
     return captcha_final.count() == 0 or not captcha_final.is_visible()
 
 SESSION_FILE = "session_qwen.json"
+SESSION_PREV_FILE = "session_qwen.prev.json"
 LOGGED_OUT_LINES = {"Log in", "Sign up", "Masuk", "Daftar"}
 LOGGED_OUT_PHRASES = ("Log in to unlock", "Confirm your age to continue")
 
 def detect_logged_out(page, context):
-    """Qwen versi anonim juga punya kotak chat, jadi textarea bukan bukti login.
-    Anggap logout kalau cookie refresh_token hilang, ada tombol Log in/Sign up,
-    atau muncul banner "Log in to unlock"."""
-    if not any(c["name"] == "refresh_token" and c.get("value") for c in context.cookies()):
-        return True, "cookie refresh_token tidak ada"
+    """Deteksi logout dengan audit cookie teliti, cek API auth jika tersedia,
+    dan tidak mudah false-positive."""
+    cookies = context.cookies()
+    cookie_info = []
+    has_auth_cookie = False
+    for c in cookies:
+        name = c.get("name", "")
+        exp = c.get("expires", -1)
+        exp_str = f"{((exp - time.time()) / 86400):.1f} hari" if exp > 0 else "session"
+        if name in ("refresh_token", "token", "acw_tc", "login_aliyunid_ticket", "baxia_token"):
+            cookie_info.append(f"{name}({exp_str})")
+        if name in ("refresh_token", "token", "login_aliyunid_ticket") and c.get("value"):
+            has_auth_cookie = True
+
+    if cookie_info:
+        print(f"🔍 [AUDIT COOKIES] {', '.join(cookie_info)}")
+
+    # Bukti keras: Cek API auth endpoint Qwen
+    try:
+        api_check_js = "async () => { const res = await fetch('/api/v1/user/info', { method: 'GET', credentials: 'include' }); return { status: res.status, ok: res.ok }; }"
+        api_res = page.evaluate(api_check_js)
+        status = api_res.get("status")
+        if status in (401, 403):
+            return True, f"API auth mengembalikan status HTTP {status} (Unauthorized)"
+        elif status == 200:
+            return False, ""
+    except Exception:
+        pass
+
     try:
         body_txt = page.evaluate("() => document.body.innerText") or ""
     except Exception:
         body_txt = ""
-    lines = {ln.strip() for ln in body_txt.splitlines()}
-    hit = LOGGED_OUT_LINES & lines
-    if hit:
-        return True, f"tombol {sorted(hit)} terlihat"
+
     for phrase in LOGGED_OUT_PHRASES:
         if phrase in body_txt:
-            return True, f"teks '{phrase}' terlihat"
+            return True, f"teks '{phrase}' terlihat di halaman"
+
+    if not has_auth_cookie:
+        lines = {ln.strip() for ln in body_txt.splitlines()}
+        hit = LOGGED_OUT_LINES & lines
+        if hit:
+            return True, f"auth cookie nihil & tombol {sorted(hit)} terlihat"
+
     return False, ""
 
 def save_session(context):
-    cookies = context.cookies()
-    with open(SESSION_FILE, "w") as f:
-        json.dump(cookies, f, indent=2)
-    rt = next((c for c in cookies if c["name"] == "refresh_token"), None)
-    if rt and rt.get("expires", -1) > 0:
-        days = (rt["expires"] - time.time()) / 86400
-        print(f"💾 [SESSION] {len(cookies)} cookie disimpan, refresh_token berlaku {days:.1f} hari lagi.")
-    else:
-        print(f"💾 [SESSION] {len(cookies)} cookie disimpan.")
+    """Simpan storage_state Playwright resmi (cookies + localStorage/IndexedDB)
+    dan cadangkan generasi sebelumnya (.prev.json)."""
+    try:
+        if os.path.exists(SESSION_FILE) and os.path.getsize(SESSION_FILE) > 0:
+            try:
+                import shutil
+                shutil.copy2(SESSION_FILE, SESSION_PREV_FILE)
+            except Exception:
+                pass
+
+        context.storage_state(path=SESSION_FILE)
+        cookies = context.cookies()
+        rt = next((c for c in cookies if c.get("name") == "refresh_token"), None)
+        if rt and rt.get("expires", -1) > 0:
+            days = (rt["expires"] - time.time()) / 86400
+            print(f"💾 [STORAGE_STATE] Berhasil disimpan ({len(cookies)} cookies + localStorage). refresh_token: {days:.1f} hari lagi.")
+        else:
+            print(f"💾 [STORAGE_STATE] Berhasil disimpan ({len(cookies)} cookies + localStorage).")
+    except Exception as e:
+        print(f"⚠️ Gagal save storage_state, fallback ke cookies: {e}")
+        try:
+            with open(SESSION_FILE, "w") as f:
+                json.dump(context.cookies(), f, indent=2)
+        except Exception as e2:
+            print(f"❌ Error save fallback cookies: {e2}")
 
 def drop_session():
-    """Jangan timpa secret dengan cookie yang sudah mati."""
-    if os.path.exists(SESSION_FILE):
-        os.remove(SESSION_FILE)
+    """JANGAN langsung hapus file sesi agar secret tidak putus permanen.
+    Cukup catat warning."""
+    print("⚠️ [SESSION DROP GUARD] Menolak hapus disk session agar rantai secret tidak putus.")
 
 def fail_run(reason: str):
     print(f"❌ {reason}")
@@ -319,7 +364,7 @@ def main():
     send_telegram_msg(f"🚀 [TAHAP 1/5] Inisialisasi Playwright Stealth via WARP...\nTarget: {TARGET_EMAIL}")
     
     proxy_cfg = None
-    webshare_proxy = os.getenv("WEBSHARE_ROTATING_PROXY", "").strip() or "http://hzvrsvul-rotate:je47prui48ga@p.webshare.io:80"
+    webshare_proxy = os.getenv("WEBSHARE_ROTATING_PROXY", "").strip()
     if webshare_proxy:
         if "@" in webshare_proxy:
             # format: http://user:pass@host:port
@@ -333,7 +378,7 @@ def main():
             }
         else:
             proxy_cfg = {"server": webshare_proxy}
-        print(f"✅ Menggunakan Webshare Residential Rotating Proxy: {proxy_cfg['server']} (Auth: Yes)")
+        print(f"✅ Menggunakan Webshare Proxy dari Secret: {proxy_cfg['server']} (Auth: Yes)")
     else:
         try:
             import socket
@@ -359,26 +404,43 @@ def main():
             launch_kwargs["proxy"] = proxy_cfg
 
         browser = p.chromium.launch(**launch_kwargs)
-        context = browser.new_context(
-            viewport={"width": 1280, "height": 900},
-            user_agent="Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36"
-        )
-        
-        # 1. Coba gunakan sesi tersimpan jika ada
-        if os.path.exists(SESSION_FILE):
+
+        ctx_kwargs = {
+            "viewport": {"width": 1280, "height": 900},
+            "user_agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36"
+        }
+
+        # Coba muat storage_state (atau fallback ke .prev.json)
+        for cand_file in (SESSION_FILE, SESSION_PREV_FILE):
+            if os.path.exists(cand_file) and os.path.getsize(cand_file) > 0:
+                try:
+                    with open(cand_file) as f_test:
+                        test_data = json.load(f_test)
+                    if isinstance(test_data, dict) and ("cookies" in test_data or "origins" in test_data):
+                        ctx_kwargs["storage_state"] = cand_file
+                        print(f"📦 [STORAGE_STATE] Context diinisialisasi dari: {cand_file}")
+                        break
+                except Exception as e:
+                    print(f"Warning baca {cand_file}: {e}")
+
+        context = browser.new_context(**ctx_kwargs)
+
+        # Fallback jika session file lama berformat list cookies biasa
+        if not ctx_kwargs.get("storage_state") and os.path.exists(SESSION_FILE):
             try:
                 with open(SESSION_FILE) as f_s:
                     saved_c = json.load(f_s)
                     c_list = []
-                    if isinstance(saved_c, dict):
+                    if isinstance(saved_c, list):
+                        c_list = saved_c
+                    elif isinstance(saved_c, dict) and "cookies" not in saved_c:
                         for k, v in saved_c.items():
                             c_list.append({"name": k, "value": str(v), "domain": ".qwen.ai", "path": "/"})
-                    elif isinstance(saved_c, list):
-                        c_list = saved_c
-                    context.add_cookies(c_list)
-                    print(f"🍪 [INIT] Memuat {len(c_list)} cookies sesi dari session_qwen.json")
+                    if c_list:
+                        context.add_cookies(c_list)
+                        print(f"🍪 [LEGACY COOKIES] Memuat {len(c_list)} cookies sesi dari session_qwen.json")
             except Exception as e:
-                print(f"Warning init cookies: {e}")
+                print(f"Warning init fallback cookies: {e}")
 
         page = context.new_page()
 
@@ -399,15 +461,14 @@ def main():
 
                 if PROMPT_ASK:
                     answer = send_prompt_and_extract_answer(page, PROMPT_ASK)
+                    # Simpan token SEGERA setelah chat, sebelum evaluasi/drop apa pun
+                    save_session(context)
                     print("\n" + "="*40 + " QWEN FINAL ANSWER " + "="*40 + "\n")
                     print(answer)
                     print("\n" + "="*95 + "\n")
                     is_logged_out, why = detect_logged_out(page, context)
                     if is_logged_out:
-                        drop_session()
-                        fail_run(f"Sesi ternyata ter-logout saat kirim chat ({why}). Jalankan workflow lagi untuk login ulang via OTP.")
-                    # refresh_token bisa dirotasi Qwen selama chat, simpan versi terbaru
-                    save_session(context)
+                        fail_run(f"Sesi ter-logout saat chat ({why}). Butuh refresh/login ulang.")
                     if not answer:
                         fail_run("Jawaban Qwen kosong.")
                     send_telegram_msg(f"✨ [JAWABAN QWEN 4 MAX]:\n\n{answer}")
@@ -525,10 +586,11 @@ def main():
             if PROMPT_ASK:
                 send_telegram_msg(f"🧠 [QWEN RELAY] Mengirimkan pertanyaan ke Qwen 4 Max...")
                 answer = send_prompt_and_extract_answer(page, PROMPT_ASK)
+                # Simpan token SEGERA setelah chat
+                save_session(context)
                 print("\n" + "="*40 + " QWEN FINAL ANSWER " + "="*40 + "\n")
                 print(answer)
                 print("\n" + "="*95 + "\n")
-                save_session(context)
                 if not answer:
                     fail_run("Jawaban Qwen kosong setelah login ulang.")
                 send_telegram_msg(f"✨ [JAWABAN QWEN 4 MAX]:\n\n{answer}")

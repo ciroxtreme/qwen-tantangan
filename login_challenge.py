@@ -348,7 +348,10 @@ def detect_logged_out(page, context):
         if api_status and api_status != 404:
             print(f"🔍 [AUTH CHECK] {api_ep} -> HTTP {api_status}, identitas={'ada' if api_res.get('identity') else 'tidak ada'}")
         if api_status in (401, 403):
-            return True, f"API auth {api_ep} mengembalikan status HTTP {api_status} (Unauthorized)"
+            if not has_auth_cookie:
+                return True, f"API auth {api_ep} mengembalikan status HTTP {api_status} (Unauthorized) & auth cookie nihil"
+            else:
+                print(f"⚠️ [AUTH CHECK] {api_ep} status {api_status}, tapi auth cookie masih valid ({len(cookies)} cookies). Mengabaikan false-positive.")
         if api_status == 200:
             if api_res.get("identity") and not api_res.get("guest"):
                 return False, ""

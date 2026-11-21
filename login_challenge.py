@@ -319,16 +319,32 @@ def main():
     send_telegram_msg(f"🚀 [TAHAP 1/5] Inisialisasi Playwright Stealth via WARP...\nTarget: {TARGET_EMAIL}")
     
     proxy_cfg = None
-    try:
-        import socket
-        s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        s.settimeout(2)
-        s.connect(("127.0.0.1", 40000))
-        s.close()
-        proxy_cfg = {"server": "socks5://127.0.0.1:40000"}
-        print("✅ Cloudflare WARP proxy terdeteksi di port 40000")
-    except Exception:
-        pass
+    webshare_proxy = os.getenv("WEBSHARE_ROTATING_PROXY", "").strip() or "http://hzvrsvul-rotate:je47prui48ga@p.webshare.io:80"
+    if webshare_proxy:
+        if "@" in webshare_proxy:
+            # format: http://user:pass@host:port
+            auth_part, host_part = webshare_proxy.split("://")[1].split("@")
+            user, pwd = auth_part.split(":")
+            proto = webshare_proxy.split("://")[0]
+            proxy_cfg = {
+                "server": f"{proto}://{host_part}",
+                "username": user,
+                "password": pwd
+            }
+        else:
+            proxy_cfg = {"server": webshare_proxy}
+        print(f"✅ Menggunakan Webshare Residential Rotating Proxy: {proxy_cfg['server']} (Auth: Yes)")
+    else:
+        try:
+            import socket
+            s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            s.settimeout(2)
+            s.connect(("127.0.0.1", 40000))
+            s.close()
+            proxy_cfg = {"server": "socks5://127.0.0.1:40000"}
+            print("✅ Cloudflare WARP proxy terdeteksi di port 40000")
+        except Exception:
+            pass
 
     with Stealth().use_sync(sync_playwright()) as p:
         browser_args = [

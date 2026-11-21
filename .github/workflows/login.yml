@@ -38,34 +38,11 @@ jobs:
             echo "Session restored from secret."
           else
             echo "No QWEN_SESSION_JSON secret yet; using repo session file if present."
-          fi
-  
-      - name: Install & Setup Official Cloudflare WARP SOCKS5 Tunnel
+          fi      - name: Setup Webshare Residential Rotating Proxy
         run: |
-          echo "📥 Memasang Cloudflare WARP client resmi..."
-          export DEBIAN_FRONTEND=noninteractive
-          curl -fsSL -o /tmp/warp.deb https://pkg.cloudflareclient.com/pool/jammy/main/c/cloudflare-warp/cloudflare-warp_2024.11.309.0_amd64.deb || curl -fsSL -o /tmp/warp.deb https://pkg.cloudflareclient.com/pool/jammy/main/c/cloudflare-warp/cloudflare-warp_2024.6.497.0_amd64.deb || true
+          echo "🌐 Menggunakan Webshare Residential Rotating Proxy..."
+          echo "Bypass Cloudflare WARP & menggunakan residential IP murni."
 
-          if [ -f /tmp/warp.deb ] && [ $(stat -c%s /tmp/warp.deb) -gt 1000000 ]; then
-            sudo dpkg -i /tmp/warp.deb || true
-          else
-            curl -fsSL https://pkg.cloudflareclient.com/pubkey.gpg | sudo gpg --yes --dearmor --output /usr/share/keyrings/cloudflare-warp-archive-keyring.gpg
-            echo "deb [arch=amd64 signed-by=/usr/share/keyrings/cloudflare-warp-archive-keyring.gpg] https://pkg.cloudflareclient.com/ jammy main" | sudo tee /etc/apt/sources.list.d/cloudflare-client.list
-            sudo apt-get update -y -o Dir::Etc::sourcelist="sources.list.d/cloudflare-client.list" -o Dir::Etc::sourceparts="-" -o APT::Get::List-Cleanup="0"
-            sudo apt-get install -y --no-install-recommends cloudflare-warp
-          fi
-
-          sudo systemctl start warp-svc
-          sleep 1
-
-          warp-cli --accept-tos registration new || warp-cli --accept-tos register || true
-          warp-cli --accept-tos mode proxy || true
-          warp-cli --accept-tos proxy port 40000 || true
-          warp-cli --accept-tos connect || true
-
-          sleep 2
-          echo "✅ Status WARP:"
-          warp-cli --accept-tos status || true
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -90,6 +67,7 @@ jobs:
         env:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          WEBSHARE_ROTATING_PROXY: ${{ secrets.WEBSHARE_ROTATING_PROXY }}
           TARGET_EMAIL: ${{ github.event.inputs.email || 'tuanciroxtreme@gmail.com' }}
           PROMPT_ASK: ${{ github.event.inputs.prompt || '' }}
           PYTHONUNBUFFERED: "1"

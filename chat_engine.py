@@ -374,16 +374,27 @@ def send_prompt_and_extract_answer(page, prompt: str, timeout_sec: int = 2400, i
         print(f"Notice UI model switch: {e}")
 
     print("👉 Mengetik prompt ke input chat...")
-    textarea = page.locator("textarea, [contenteditable='true']").first
+    textarea = page.locator("textarea, [contenteditable='true'], input[type='text']").first
     textarea.wait_for(state="visible", timeout=25000)
-    textarea.click()
+    textarea.click(force=True)
     time.sleep(0.5)
-    textarea.fill(prompt)
+    try:
+        textarea.fill(prompt)
+    except Exception:
+        page.evaluate("""(text) => {
+            const el = document.querySelector('textarea, [contenteditable="true"]');
+            if (el) {
+                if (el.tagName === 'TEXTAREA') el.value = text;
+                else el.innerText = text;
+                el.dispatchEvent(new Event('input', { bubbles: true }));
+                el.dispatchEvent(new Event('change', { bubbles: true }));
+            }
+        }""", prompt)
     time.sleep(1)
 
     print("👉 Menekan tombol kirim / Enter...")
     textarea.press("Enter")
-    time.sleep(1)
+    time.sleep(0.5)
     page.keyboard.press("Enter")
     try:
         send_btns = page.locator("button[aria-label*='Kirim'], button[aria-label*='Send'], button[type='submit'], .send-button, .chat-input-send-button, button:has(svg)")

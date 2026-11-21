@@ -310,11 +310,12 @@ def detect_logged_out(page, context):
     except Exception:
         body_txt = ""
 
-    for phrase in LOGGED_OUT_PHRASES:
-        if phrase in body_txt:
-            return True, f"teks '{phrase}' terlihat di halaman"
-
+    # Catatan: Frasa seperti 'Log in to unlock' dan tombol 'Log in' sering muncul di banner/footer
+    # bahkan saat sesi masih aktif atau sedang memproses. JANGAN anggap logout jika auth cookie masih ada!
     if not has_auth_cookie:
+        for phrase in LOGGED_OUT_PHRASES:
+            if phrase in body_txt:
+                return True, f"auth cookie nihil & teks '{phrase}' terlihat di halaman"
         lines = {ln.strip() for ln in body_txt.splitlines()}
         hit = LOGGED_OUT_LINES & lines
         if hit:
@@ -323,8 +324,10 @@ def detect_logged_out(page, context):
     return False, ""
 
 def save_session(context):
-    """Simpan storage_state Playwright resmi (cookies + localStorage/IndexedDB)
-    dan cadangkan generasi sebelumnya (.prev.json)."""
+    """Simpan storage_state Playwright resmi.
+    PENTING: GitHub Actions Secret memiliki batas ukuran 64KB (65536 bytes).
+    Jika storage_state lengkap (karena cache localStorage) melebihi 48KB,
+    kita pangkas atau simpan list cookies murni agar lolos HTTP 422 secret limit."""
     try:
         if os.path.exists(SESSION_FILE) and os.path.getsize(SESSION_FILE) > 0:
             try:
@@ -333,19 +336,31 @@ def save_session(context):
             except Exception:
                 pass
 
-        context.storage_state(path=SESSION_FILE)
+        # Ambil state dictionary dari Playwright
+        state = context.storage_state()
+        state_str = json.dumps(state)
+
+        # Cek ukuran file state
+        if len(state_str.encode('utf-8')) > 48000:
+            print(f"⚠️ [SIZE GUARD] Storage state terlalu besar ({len(state_str)} bytes). Menyimpan cookies saja agar lolos limit 64KB GitHub Secret.")
+            with open(SESSION_FILE, "w") as f:
+                json.dump(context.cookies(), f)
+        else:
+            with open(SESSION_FILE, "w") as f:
+                f.write(state_str)
+
         cookies = context.cookies()
         rt = next((c for c in cookies if c.get("name") == "refresh_token"), None)
         if rt and rt.get("expires", -1) > 0:
             days = (rt["expires"] - time.time()) / 86400
-            print(f"💾 [STORAGE_STATE] Berhasil disimpan ({len(cookies)} cookies + localStorage). refresh_token: {days:.1f} hari lagi.")
+            print(f"💾 [SESSION] Berhasil disimpan ({len(cookies)} cookies, {os.path.getsize(SESSION_FILE)} bytes). refresh_token: {days:.1f} hari lagi.")
         else:
-            print(f"💾 [STORAGE_STATE] Berhasil disimpan ({len(cookies)} cookies + localStorage).")
+            print(f"💾 [SESSION] Berhasil disimpan ({len(cookies)} cookies, {os.path.getsize(SESSION_FILE)} bytes).")
     except Exception as e:
         print(f"⚠️ Gagal save storage_state, fallback ke cookies: {e}")
         try:
             with open(SESSION_FILE, "w") as f:
-                json.dump(context.cookies(), f, indent=2)
+                json.dump(context.cookies(), f)
         except Exception as e2:
             print(f"❌ Error save fallback cookies: {e2}")
 

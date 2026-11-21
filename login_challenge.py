@@ -302,48 +302,59 @@ def detect_logged_out(page, context):
         print(f"🔍 [AUDIT COOKIES] {', '.join(cookie_info)}")
 
     # Bukti keras: API auth Qwen, isi responsnya ikut diperiksa (bukan status saja).
-    # JS hanya mengembalikan boolean, tidak ada data identitas yang keluar ke log.
+    # Endpoint terverifikasi 21 Nov 2026 dari halaman chat.qwen.ai anonim:
+    #   /api/v1/user/info -> 404 (BUKAN endpoint user; versi lama salah alamat)
+    #   /api/v1/auths/    -> 401 anonim (endpoint sesi yang dipakai web app saat load)
+    #   /api/v1/users/me  -> 401 anonim (endpoint user terproteksi)
+    # JS hanya mengembalikan boolean + nama endpoint, tidak ada data identitas/token ke log.
     api_status = None
     try:
         api_check_js = """
         async () => {
-          try {
-            const res = await fetch('/api/v1/user/info', {
-              method: 'GET', credentials: 'include',
-              headers: { 'Accept': 'application/json' }
-            });
-            let data = null;
-            try { data = await res.json(); } catch (e) {}
-            let identity = false, guest = false;
-            const walk = (o, d) => {
-              if (!o || typeof o !== 'object' || d > 5) return;
-              for (const [k, v] of Object.entries(o)) {
-                const key = String(k).toLowerCase();
-                if ((key === 'email' || key === 'user_id' || key === 'userid' || key === 'uid')
-                    && typeof v === 'string' && v.trim()) identity = true;
-                if (key === 'id' && (typeof v === 'string' || typeof v === 'number')
-                    && String(v).trim() && String(v) !== '0') identity = true;
-                if (typeof v === 'string' && /guest|anonymous/i.test(v)) guest = true;
-                if (v && typeof v === 'object') walk(v, d + 1);
-              }
-            };
-            walk(data, 0);
-            return { status: res.status, identity: identity, guest: guest, has_data: !!data };
-          } catch (e) {
-            return { status: 0, identity: false, guest: false, has_data: false };
+          const endpoints = ['/api/v1/auths/', '/api/v1/users/me'];
+          let last = { status: 404, identity: false, guest: false, has_data: false, endpoint: '' };
+          for (const ep of endpoints) {
+            try {
+              const res = await fetch(ep, {
+                method: 'GET', credentials: 'include',
+                headers: { 'Accept': 'application/json' }
+              });
+              let data = null;
+              try { data = await res.json(); } catch (e) {}
+              let identity = false, guest = false;
+              const walk = (o, d) => {
+                if (!o || typeof o !== 'object' || d > 5) return;
+                for (const [k, v] of Object.entries(o)) {
+                  const key = String(k).toLowerCase();
+                  if ((key === 'email' || key === 'user_id' || key === 'userid' || key === 'uid')
+                      && typeof v === 'string' && v.trim()) identity = true;
+                  if (key === 'id' && (typeof v === 'string' || typeof v === 'number')
+                      && String(v).trim() && String(v) !== '0') identity = true;
+                  if (typeof v === 'string' && /guest|anonymous/i.test(v)) guest = true;
+                  if (v && typeof v === 'object') walk(v, d + 1);
+                }
+              };
+              walk(data, 0);
+              last = { status: res.status, identity: identity, guest: guest, has_data: !!data, endpoint: ep };
+              if (res.status !== 404) break;
+            } catch (e) {}
           }
+          return last;
         }
         """
         api_res = page.evaluate(api_check_js) or {}
         api_status = api_res.get("status")
+        api_ep = api_res.get("endpoint") or "?"
+        if api_status and api_status != 404:
+            print(f"🔍 [AUTH CHECK] {api_ep} -> HTTP {api_status}, identitas={'ada' if api_res.get('identity') else 'tidak ada'}")
         if api_status in (401, 403):
-            return True, f"API auth mengembalikan status HTTP {api_status} (Unauthorized)"
+            return True, f"API auth {api_ep} mengembalikan status HTTP {api_status} (Unauthorized)"
         if api_status == 200:
             if api_res.get("identity") and not api_res.get("guest"):
                 return False, ""
             if api_res.get("guest"):
-                return True, "API auth 200 tapi identitasnya guest/anonim"
-            return True, "API auth 200 tapi tanpa identitas user (kemungkinan sesi anonim/guest)"
+                return True, f"API auth {api_ep} 200 tapi identitasnya guest/anonim"
+            return True, f"API auth {api_ep} 200 tapi tanpa identitas user (kemungkinan sesi anonim/guest)"
     except Exception:
         api_status = None
 

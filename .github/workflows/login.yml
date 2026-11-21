@@ -14,6 +14,11 @@ on:
         required: false
         default: ""
 
+# refresh_token Qwen dirotasi; dua run paralel bisa saling menimpa sesi
+concurrency:
+  group: qwen-session
+  cancel-in-progress: false
+
 jobs:
   run-challenge:
     runs-on: ubuntu-22.04
@@ -92,6 +97,7 @@ jobs:
           xvfb-run -a python -u login_challenge.py "${{ github.event.inputs.prompt || '' }}"
 
       - name: Save Qwen session to secret
+        if: always()
         env:
           GH_TOKEN: ${{ secrets.GH_PAT }}
         run: |

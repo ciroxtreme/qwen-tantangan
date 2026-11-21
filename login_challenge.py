@@ -276,8 +276,16 @@ LOGGED_OUT_LINES = {"Log in", "Sign up", "Masuk", "Daftar"}
 LOGGED_OUT_PHRASES = ("Log in to unlock", "Confirm your age to continue")
 
 def detect_logged_out(page, context):
-    """Deteksi logout dengan audit cookie teliti, cek API auth jika tersedia,
-    dan tidak mudah false-positive."""
+    """Nyatakan LOGIN hanya dengan bukti positif; selain itu fail-closed.
+
+    Bukti positif = API auth membalas 200 DAN isi responsnya memuat
+    identitas user (id/email), bukan sekadar status 200. Status 200 tanpa
+    identitas (sesi anonim/guest, endpoint berubah, dsb.) BUKAN bukti login,
+    walaupun auth cookie lama masih tersisa di browser.
+    Kalau API tidak konklusif, fallback: cookie auth + DOM (banner 'Log in'
+    bisa muncul saat sesi aktif, jadi DOM hanya bukti logout bila cookie
+    auth nihil — lihat catatan di bawah).
+    """
     cookies = context.cookies()
     cookie_info = []
     has_auth_cookie = False
@@ -293,17 +301,51 @@ def detect_logged_out(page, context):
     if cookie_info:
         print(f"🔍 [AUDIT COOKIES] {', '.join(cookie_info)}")
 
-    # Bukti keras: Cek API auth endpoint Qwen
+    # Bukti keras: API auth Qwen, isi responsnya ikut diperiksa (bukan status saja).
+    # JS hanya mengembalikan boolean, tidak ada data identitas yang keluar ke log.
+    api_status = None
     try:
-        api_check_js = "async () => { const res = await fetch('/api/v1/user/info', { method: 'GET', credentials: 'include' }); return { status: res.status, ok: res.ok }; }"
-        api_res = page.evaluate(api_check_js)
-        status = api_res.get("status")
-        if status in (401, 403):
-            return True, f"API auth mengembalikan status HTTP {status} (Unauthorized)"
-        elif status == 200:
-            return False, ""
+        api_check_js = """
+        async () => {
+          try {
+            const res = await fetch('/api/v1/user/info', {
+              method: 'GET', credentials: 'include',
+              headers: { 'Accept': 'application/json' }
+            });
+            let data = null;
+            try { data = await res.json(); } catch (e) {}
+            let identity = false, guest = false;
+            const walk = (o, d) => {
+              if (!o || typeof o !== 'object' || d > 5) return;
+              for (const [k, v] of Object.entries(o)) {
+                const key = String(k).toLowerCase();
+                if ((key === 'email' || key === 'user_id' || key === 'userid' || key === 'uid')
+                    && typeof v === 'string' && v.trim()) identity = true;
+                if (key === 'id' && (typeof v === 'string' || typeof v === 'number')
+                    && String(v).trim() && String(v) !== '0') identity = true;
+                if (typeof v === 'string' && /guest|anonymous/i.test(v)) guest = true;
+                if (v && typeof v === 'object') walk(v, d + 1);
+              }
+            };
+            walk(data, 0);
+            return { status: res.status, identity: identity, guest: guest, has_data: !!data };
+          } catch (e) {
+            return { status: 0, identity: false, guest: false, has_data: false };
+          }
+        }
+        """
+        api_res = page.evaluate(api_check_js) or {}
+        api_status = api_res.get("status")
+        if api_status in (401, 403):
+            return True, f"API auth mengembalikan status HTTP {api_status} (Unauthorized)"
+        if api_status == 200:
+            if api_res.get("identity") and not api_res.get("guest"):
+                return False, ""
+            if api_res.get("guest"):
+                return True, "API auth 200 tapi identitasnya guest/anonim"
+            return True, "API auth 200 tapi tanpa identitas user (kemungkinan sesi anonim/guest)"
     except Exception:
-        pass
+        api_status = None
 
     try:
         body_txt = page.evaluate("() => document.body.innerText") or ""
@@ -320,7 +362,11 @@ def detect_logged_out(page, context):
         hit = LOGGED_OUT_LINES & lines
         if hit:
             return True, f"auth cookie nihil & tombol {sorted(hit)} terlihat"
+        return True, "tidak ada bukti login (API tidak membuktikan identitas & auth cookie nihil)"
 
+    # API tidak konklusif, tapi auth cookie masih ada & (per catatan di atas) DOM tidak
+    # bisa dijadikan bukti logout selama cookie itu ada.
+    print(f"⚠️ [AUTH CHECK] API tidak konklusif (status={api_status}); lolos via cookie auth.")
     return False, ""
 
 def save_session(context):
@@ -476,8 +522,6 @@ def main():
 
                 if PROMPT_ASK:
                     answer = send_prompt_and_extract_answer(page, PROMPT_ASK)
-                    # Simpan token SEGERA setelah chat, sebelum evaluasi/drop apa pun
-                    save_session(context)
                     print("\n" + "="*40 + " QWEN FINAL ANSWER " + "="*40 + "\n")
                     print(answer)
                     print("\n" + "="*95 + "\n")
@@ -486,6 +530,9 @@ def main():
                         fail_run(f"Sesi ter-logout saat chat ({why}). Butuh refresh/login ulang.")
                     if not answer:
                         fail_run("Jawaban Qwen kosong.")
+                    # Simpan token HANYA setelah sesi terbukti masih login & ada jawaban,
+                    # supaya secret tidak tertimpa sesi yang sudah mati.
+                    save_session(context)
                     send_telegram_msg(f"✨ [JAWABAN QWEN 4 MAX]:\n\n{answer}")
                 return
             else:
@@ -589,25 +636,26 @@ def main():
             time.sleep(6)
             
             page.screenshot(path="final_logged_in.png")
-            send_telegram_photo("final_logged_in.png", "🎉🎉 [SUKSES BESAR!!] STATUS BERHASIL LOGIN DI QWEN!!")
-            
+            send_telegram_photo("final_logged_in.png", "📸 [SETELAH SUBMIT OTP] Status halaman, menunggu verifikasi login...")
+
             is_logged_out, why = detect_logged_out(page, context)
             if is_logged_out:
                 fail_run(f"Login OTP belum berhasil ({why}).")
             save_session(context)
-            send_telegram_msg("🍪 [VICTORY!] Login berhasil, sesi baru disimpan.")
+            send_telegram_photo("final_logged_in.png", "🎉🎉 [SUKSES BESAR!!] STATUS BERHASIL LOGIN DI QWEN!!")
+            send_telegram_msg("🍪 [VICTORY!] Login berhasil (terverifikasi), sesi baru disimpan.")
 
             # Eksekusi prompt pertanyaan langsung
             if PROMPT_ASK:
                 send_telegram_msg(f"🧠 [QWEN RELAY] Mengirimkan pertanyaan ke Qwen 4 Max...")
                 answer = send_prompt_and_extract_answer(page, PROMPT_ASK)
-                # Simpan token SEGERA setelah chat
-                save_session(context)
                 print("\n" + "="*40 + " QWEN FINAL ANSWER " + "="*40 + "\n")
                 print(answer)
                 print("\n" + "="*95 + "\n")
                 if not answer:
                     fail_run("Jawaban Qwen kosong setelah login ulang.")
+                # Simpan hanya setelah ada jawaban nyata
+                save_session(context)
                 send_telegram_msg(f"✨ [JAWABAN QWEN 4 MAX]:\n\n{answer}")
         else:
             fail_run("Belum berhasil login: OTP tidak diterima atau form OTP tidak muncul.")

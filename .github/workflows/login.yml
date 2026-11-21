@@ -38,7 +38,9 @@ jobs:
             echo "Session restored from secret."
           else
             echo "No QWEN_SESSION_JSON secret yet; using repo session file if present."
-          fi      - name: Setup Webshare Residential Rotating Proxy
+          fi
+
+      - name: Setup Webshare Residential Rotating Proxy
         run: |
           echo "🌐 Menggunakan Webshare Residential Rotating Proxy..."
           echo "Bypass Cloudflare WARP & menggunakan residential IP murni."
